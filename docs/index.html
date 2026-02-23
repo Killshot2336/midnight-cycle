@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Midnight</title>
+
+  <meta name="theme-color" content="#0f1115" />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="app-header">
+      <h1>Midnight</h1>
+      <button id="accentBtn" type="button">Accent</button>
+    </header>
+
+    <main class="main">
+      <section class="card">
+        <h2>Cycle</h2>
+        <p id="cycleStatus">Loading…</p>
+        <button id="logStartBtn" type="button">Log Period Start</button>
+      </section>
+
+      <section class="card">
+        <h2>Forecast</h2>
+        <div class="forecast">
+          <div class="row"><span class="k">Phase</span><span class="v" id="phaseText">—</span></div>
+          <div class="row"><span class="k">Energy</span><span class="v" id="energyText">—</span></div>
+          <div class="row"><span class="k">Mood</span><span class="v" id="moodText">—</span></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Notifications</h2>
+        <button id="enablePushBtn" type="button">Enable Push</button>
+        <p id="pushStatus" class="muted"></p>
+      </section>
+    </main>
+
+    <footer class="footer muted">
+      Local-only by default. Uses anonymous login for your device.
+    </footer>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
