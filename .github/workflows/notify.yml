@@ -18,7 +18,9 @@ jobs:
       - name: Debug list server folder
         run: |
           ls -la
+          echo "---- server folder ----"
           ls -la server || true
+          echo "---- package.json ----"
           cat server/package.json || true
 
       - name: Install deps
