@@ -1,6 +1,5 @@
-// IMPORTANT: paste your Firebase web config + VAPID key below.
-// Firebase Console -> Project settings -> Your apps (Web app)
-// Firebase Console -> Project settings -> Cloud Messaging -> Web Push certificates (VAPID)
+// docs/firebase.js
+// Firebase web config + VAPID key live here.
 
 export const CONFIG = {
   firebase: {
@@ -35,25 +34,11 @@ export async function initFirebase() {
   await signInAnonymously(auth);
   const uid = await new Promise((resolve) => {
     const unsub = onAuthStateChanged(auth, (u) => {
-      if (u?.uid) {
-        unsub();
-        resolve(u.uid);
-      }
+      if (u?.uid) { unsub(); resolve(u.uid); }
     });
   });
 
-  return {
-    auth,
-    db,
-    messaging,
-    uid,
-    doc,
-    setDoc,
-    getDoc,
-    serverTimestamp,
-    getToken,
-    deleteToken
-  };
+  return { auth, db, messaging, uid, doc, setDoc, getDoc, serverTimestamp, getToken, deleteToken };
 }
 
 export function userRef(db, uid, docFn) {
