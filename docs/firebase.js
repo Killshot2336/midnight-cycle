@@ -1,3 +1,7 @@
+// IMPORTANT: paste your Firebase web config + VAPID key below.
+// Firebase Console -> Project settings -> Your apps (Web app)
+// Firebase Console -> Project settings -> Cloud Messaging -> Web Push certificates (VAPID)
+
 export const CONFIG = {
   firebase: {
     apiKey: "AIzaSyDFOyUfVC50l2wNPZH3IiYl-iW8BrQvYR8",
@@ -14,9 +18,10 @@ export const CONFIG = {
   }
 };
 
+// Firebase v10 modules (CDN)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, serverTimestamp, collection, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { getMessaging, getToken, deleteToken, isSupported } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging.js";
 
 export async function initFirebase() {
@@ -24,7 +29,7 @@ export async function initFirebase() {
   const auth = getAuth(app);
   const db = getFirestore(app);
 
-  const messagingSupported = await isSupported().catch(()=>false);
+  const messagingSupported = await isSupported().catch(() => false);
   const messaging = messagingSupported ? getMessaging(app) : null;
 
   await signInAnonymously(auth);
@@ -34,12 +39,21 @@ export async function initFirebase() {
     });
   });
 
-  return { app, auth, db, messaging, uid, doc, setDoc, getDoc, serverTimestamp, getToken, deleteToken };
+  return {
+    auth, db, messaging, uid,
+    doc, setDoc, getDoc, serverTimestamp,
+    collection, getDocs, query, orderBy, limit,
+    getToken, deleteToken
+  };
+}
+
+export function userRef(db, uid, docFn) {
+  return docFn(db, "users", uid);
 }
 
 export async function ensureUserDoc(fb) {
-  const ref = doc(fb.db, "users", fb.uid);
-  const snap = await getDoc(ref);
+  const ref = userRef(fb.db, fb.uid, fb.doc);
+  const snap = await fb.getDoc(ref);
   if (snap.exists()) return snap.data();
 
   const payload = {
@@ -51,9 +65,8 @@ export async function ensureUserDoc(fb) {
     sdCycleDays: 0,
     lastNotifiedDate: "",
     forecastPushEnabled: true,
-    createdAt: serverTimestamp()
+    createdAt: fb.serverTimestamp()
   };
-
-  await setDoc(ref, payload, { merge:true });
+  await fb.setDoc(ref, payload, { merge: true });
   return payload;
 }

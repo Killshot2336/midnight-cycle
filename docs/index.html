@@ -2,393 +2,233 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="theme-color" content="#0b0b12" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0f1a" />
   <title>Midnight</title>
   <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" href="./icon-192.png" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <div id="app" class="app">
+  <div id="appShell" class="shell">
     <header class="topbar">
       <div class="brand">
-        <div class="brand-title" id="appTitle">Midnight</div>
-        <div class="brand-sub" id="appSub">Local-first cycle intelligence. Learns irregular bodies.</div>
+        <div class="logoDot"></div>
+        <div>
+          <div id="appTitle" class="title">Midnight</div>
+          <div id="appSub" class="sub">Cycle intelligence, private by design.</div>
+        </div>
       </div>
 
-      <div class="top-actions">
-        <button class="btn ghost" id="navDashboardBtn" type="button">Dashboard</button>
-        <button class="btn ghost" id="navTimelineBtn" type="button">Timeline</button>
-        <button class="btn ghost" id="navInsightsBtn" type="button">Insights</button>
-        <button class="btn ghost" id="navVaultBtn" type="button">Vault</button>
-        <button class="btn ghost" id="customizeBtn" type="button">Customize</button>
+      <div class="topActions">
+        <button id="panicBtn" class="btn ghost" title="Panic Mode">Panic</button>
+        <button id="lockBtn" class="btn ghost" title="Lock / Vault">Lock</button>
       </div>
     </header>
 
-    <section class="hud card">
-      <div class="hud-left">
-        <div class="hud-label">Status</div>
-        <div class="hud-big" id="cycleStatus">Loading…</div>
-        <div class="hud-sub" id="cycleMeta">—</div>
-      </div>
-      <div class="hud-right">
-        <div class="pill" id="cycleBadge">—</div>
-        <div class="pill subtle" id="confidenceBadge">—</div>
-        <div class="pulse" aria-hidden="true"></div>
-      </div>
-    </section>
+    <main class="main">
+      <section class="card hero">
+        <div class="heroLeft">
+          <div class="kpi">
+            <div class="kpiLabel">Today</div>
+            <div id="todayBadge" class="kpiValue badge">Loading…</div>
+          </div>
 
-    <!-- DASHBOARD VIEW -->
-    <main id="viewDashboard" class="grid">
-      <section class="card span2">
-        <div class="card-h">
-          <div class="card-t">Intelligence System</div>
-          <div class="pillrow">
-            <div class="badge subtle" id="tierBadge">—</div>
-            <div class="badge" id="scoreBadge">Score —</div>
+          <div class="kpiRow">
+            <div class="kpi">
+              <div class="kpiLabel">Cycle phase</div>
+              <div id="phaseText" class="kpiValue">—</div>
+            </div>
+            <div class="kpi">
+              <div class="kpiLabel">Confidence</div>
+              <div id="confidenceText" class="kpiValue">—</div>
+            </div>
+          </div>
+
+          <div class="barWrap">
+            <div class="barLabelRow">
+              <span>Period</span><span id="pPeriod">0%</span>
+            </div>
+            <div class="bar"><div id="barPeriod" class="barFill"></div></div>
+
+            <div class="barLabelRow">
+              <span>PMS</span><span id="pPms">0%</span>
+            </div>
+            <div class="bar"><div id="barPms" class="barFill"></div></div>
+
+            <div class="barLabelRow">
+              <span>Ovulation</span><span id="pOvu">0%</span>
+            </div>
+            <div class="bar"><div id="barOvu" class="barFill"></div></div>
+          </div>
+
+          <div class="quick">
+            <button id="startTodayBtn" class="btn primary">Start Period Today</button>
+            <button id="logTodayBtn" class="btn">Log Today</button>
+            <button id="sexLogBtn" class="btn">Sex Log</button>
+          </div>
+
+          <div id="notifyBanner" class="banner hidden">
+            <div class="bannerTitle">6:30pm reminder</div>
+            <div class="bannerText">Notification fallback is active. You’ll see reminders inside the app.</div>
+            <button id="bannerClose" class="btn ghost sm">OK</button>
           </div>
         </div>
 
-        <div class="card-b">
-          <div class="tierwrap">
-            <div class="tierheader">
-              <div class="tiername" id="tierName">—</div>
-              <div class="tiersub" id="tierSub">—</div>
-            </div>
-
-            <div class="tierbar"><div class="tierbarfill" id="tierBarFill" style="width:0%"></div></div>
-
-            <div class="tierrow">
-              <div class="muted small" id="tierProgressText">—</div>
-              <div class="pill subtle" id="tierPercent">0%</div>
-            </div>
-
-            <div class="divider"></div>
-
-            <div class="branches">
-              <div class="branch">
-                <div class="branchh">
-                  <div class="branchname" id="branchAName">—</div>
-                  <div class="pill subtle" id="branchAStatus">—</div>
-                </div>
-                <div class="muted small" id="branchADesc">—</div>
-              </div>
-
-              <div class="branch">
-                <div class="branchh">
-                  <div class="branchname" id="branchBName">—</div>
-                  <div class="pill subtle" id="branchBStatus">—</div>
-                </div>
-                <div class="muted small" id="branchBDesc">—</div>
-              </div>
-            </div>
-
-            <div class="divider"></div>
-
-            <div class="explain">
-              <div class="explain-h">
-                <div class="card-t">Explainability</div>
-                <div class="badge subtle" id="explainMode">Realtime</div>
-              </div>
-              <div class="muted" id="explainText">—</div>
-              <div class="divider"></div>
-              <div class="muted small" id="nextHint">—</div>
-            </div>
-          </div>
+        <div class="heroRight">
+          <div class="panelTitle">Next 14 days</div>
+          <div id="timeline" class="timeline"></div>
+          <div class="panelTitle mt">Explain why</div>
+          <div id="whyBox" class="why"></div>
         </div>
+      </section>
+
+      <section class="grid2">
+        <section class="card">
+          <div class="cardTitle">Calendar</div>
+          <div id="calendar" class="calendar"></div>
+        </section>
+
+        <section class="card">
+          <div class="cardTitleRow">
+            <div class="cardTitle">Customization</div>
+            <button id="saveThemeBtn" class="btn ghost sm">Save</button>
+          </div>
+
+          <div class="formRow">
+            <label class="label">Style</label>
+            <select id="themeStyle" class="input">
+              <option value="midnight">Midnight</option>
+              <option value="obsidian">Obsidian</option>
+              <option value="noir">Noir</option>
+              <option value="neon">Neon</option>
+            </select>
+          </div>
+
+          <div class="formRow">
+            <label class="label">Accent</label>
+            <input id="accent" class="input" type="color" value="#7c4dff" />
+          </div>
+
+          <div class="formRow">
+            <label class="label">Background</label>
+            <input id="bg" class="input" type="color" value="#0b0f1a" />
+          </div>
+
+          <div class="formRow">
+            <label class="label">Card</label>
+            <input id="card" class="input" type="color" value="#121a2c" />
+          </div>
+
+          <div class="formRow">
+            <label class="label">Text</label>
+            <input id="text" class="input" type="color" value="#e9ecff" />
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="formRow">
+            <label class="label">Daily reminder</label>
+            <input id="notifyTime" class="input" type="time" value="18:30" />
+          </div>
+
+          <div class="formRow">
+            <label class="label">Timezone</label>
+            <select id="tz" class="input">
+              <option value="America/Chicago">America/Chicago</option>
+              <option value="America/Denver">America/Denver</option>
+              <option value="America/Los_Angeles">America/Los_Angeles</option>
+              <option value="America/New_York">America/New_York</option>
+            </select>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="quick">
+            <button id="vaultExportBtn" class="btn">Export Vault</button>
+            <button id="vaultImportBtn" class="btn">Import Vault</button>
+            <button id="setPasscodeBtn" class="btn ghost">Set Passcode</button>
+          </div>
+
+          <input id="vaultFile" type="file" accept="application/json" class="hidden" />
+          <div id="customNote" class="tiny muted mt"></div>
+        </section>
       </section>
 
       <section class="card">
-        <div class="card-h">
-          <div class="card-t">Forecast</div>
-          <div class="badge subtle" id="forecastBadge">—</div>
+        <div class="cardTitleRow">
+          <div class="cardTitle">Skill Tree (Consistency Engine)</div>
+          <div id="skillRank" class="badge">—</div>
         </div>
-        <div class="card-b">
-          <div class="kv">
-            <div class="k">Phase</div><div class="v" id="phaseText">—</div>
-            <div class="k">Expected</div><div class="v" id="expectedText">—</div>
-            <div class="k">Energy</div><div class="v" id="energyText">—</div>
-            <div class="k">Mood</div><div class="v" id="moodText">—</div>
-            <div class="k">Body</div><div class="v" id="bodyText">—</div>
-          </div>
-          <div class="divider"></div>
-          <div class="muted" id="insightText">—</div>
-
-          <div class="divider"></div>
-
-          <div class="card-t">Probability Map (21 days)</div>
-          <div class="probWrap">
-            <canvas id="probCanvas" width="860" height="140"></canvas>
-          </div>
-          <div class="muted small" id="probLegend">—</div>
-        </div>
-      </section>
-
-      <section class="card">
-        <div class="card-h">
-          <div class="card-t">Controls</div>
-          <div class="badge" id="modelBadge">—</div>
-        </div>
-
-        <div class="card-b">
-          <div class="row">
-            <button class="btn" id="logStartBtn" type="button">Log Period Start</button>
-            <button class="btn ghost" id="logDayBtn" type="button">Log Day</button>
-            <button class="btn ghost" id="undoBtn" type="button">Undo Start</button>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="formgrid">
-            <label class="field">
-              <span>Typical cycle length</span>
-              <input id="meanCycleInput" type="number" min="18" max="60" placeholder="e.g. 28" />
-            </label>
-
-            <label class="field">
-              <span>Typical period length</span>
-              <input id="periodLenInput" type="number" min="2" max="12" placeholder="e.g. 5" />
-            </label>
-          </div>
-
-          <button class="btn ghost full" id="saveBasicsBtn" type="button">Save Basics</button>
-
-          <div class="divider"></div>
-
-          <div class="card-t">Notifications</div>
-          <div class="formgrid">
-            <label class="field">
-              <span>Daily reminder time</span>
-              <input id="notifyTime" type="time" value="18:30" />
-            </label>
-            <label class="field">
-              <span>Timezone</span>
-              <input id="tzInput" type="text" placeholder="America/Chicago" />
-            </label>
-          </div>
-          <div class="row">
-            <button class="btn" id="enablePushBtn" type="button">Enable Push</button>
-            <button class="btn ghost" id="disablePushBtn" type="button">Disable</button>
-            <div class="badge subtle" id="pushStatus">—</div>
-          </div>
-          <div class="muted small" id="pushHelp">—</div>
-        </div>
-      </section>
-
-      <section class="card span2">
-        <div class="card-h">
-          <div class="card-t">Calendar</div>
-          <div class="pillrow">
-            <button class="btn ghost" id="prevMonthBtn" type="button">◀</button>
-            <div class="pill" id="monthLabel">—</div>
-            <button class="btn ghost" id="nextMonthBtn" type="button">▶</button>
-          </div>
-        </div>
-        <div class="card-b">
-          <div id="calendarMount"></div>
-          <div class="hint" id="calHint">Tap a day to log.</div>
-        </div>
-      </section>
-
-      <section class="card span2">
-        <div class="card-h">
-          <div class="card-t">Diagnostics</div>
-          <div class="pillrow">
-            <div class="badge subtle" id="diagHealth">—</div>
-            <div class="badge subtle" id="diagMode">Local-first</div>
-          </div>
-        </div>
-        <div class="card-b">
-          <div class="kv">
-            <div class="k">Storage</div><div class="v" id="diagStorage">—</div>
-            <div class="k">Backups</div><div class="v" id="diagBackups">—</div>
-            <div class="k">Push</div><div class="v" id="diagPush">—</div>
-            <div class="k">Last error</div><div class="v mono" id="diagError">—</div>
-          </div>
-          <div class="divider"></div>
-          <div class="muted small" id="diagHint">—</div>
-        </div>
+        <div id="skillTree" class="skillTree"></div>
       </section>
     </main>
 
-    <!-- TIMELINE VIEW -->
-    <main id="viewTimeline" class="stack hidden">
-      <section class="card">
-        <div class="card-h">
-          <div class="card-t">Timeline Intelligence (14 days)</div>
-          <div class="badge subtle" id="timelineBadge">—</div>
-        </div>
-        <div class="card-b">
-          <div class="muted" id="timelineExplain">—</div>
-          <div class="divider"></div>
-          <div id="timelineMount" class="timeline"></div>
-        </div>
-      </section>
-    </main>
-
-    <!-- INSIGHTS VIEW -->
-    <main id="viewInsights" class="stack hidden">
-      <section class="card">
-        <div class="card-h">
-          <div class="card-t">Insights</div>
-          <div class="badge subtle" id="insightsBadge">—</div>
-        </div>
-        <div class="card-b">
-          <div class="muted" id="insightsExplain">—</div>
-          <div class="divider"></div>
-          <div id="insightsMount" class="cards"></div>
-        </div>
-      </section>
-    </main>
-
-    <!-- VAULT VIEW -->
-    <main id="viewVault" class="stack hidden">
-      <section class="card">
-        <div class="card-h">
-          <div class="card-t">Vault (Data Fortress)</div>
-          <div class="badge subtle" id="vaultBadge">—</div>
-        </div>
-        <div class="card-b">
-          <div class="muted">
-            Export/import is encrypted with a password. No password stored. Auto-backups run silently.
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="formgrid">
-            <label class="field span2">
-              <span>Password (required for export/import)</span>
-              <input id="vaultPass" type="password" placeholder="Set a password you’ll remember" />
-            </label>
-          </div>
-
-          <div class="row">
-            <button class="btn" id="exportBtn" type="button">Export Encrypted</button>
-            <label class="btn ghost" for="importFile" style="cursor:pointer;">Import Encrypted</label>
-            <input id="importFile" type="file" accept=".midnight.json" style="display:none;" />
-            <button class="btn ghost" id="restoreBackupBtn" type="button">Restore Latest Backup</button>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="kv">
-            <div class="k">Auto backups</div><div class="v" id="vaultBackups">—</div>
-            <div class="k">Integrity</div><div class="v" id="vaultIntegrity">—</div>
-            <div class="k">Last vault action</div><div class="v mono" id="vaultLast">—</div>
-          </div>
-        </div>
-      </section>
-    </main>
-
-    <footer class="foot">
-      <div class="muted small">Local-first • self-healing • encrypted vault • probability + anomaly intelligence</div>
+    <footer class="footer">
+      <span class="muted tiny">Local-first. Private by default. Optional cloud sync.</span>
+      <span id="statusPill" class="pill">Booting…</span>
     </footer>
   </div>
 
-  <!-- LOG DAY -->
-  <dialog id="logDialog" class="dialog">
-    <form method="dialog" class="dialog-inner">
-      <div class="dialog-h">
-        <div class="dialog-t">Log Day</div>
-        <button class="x" value="cancel" aria-label="Close">✕</button>
+  <!-- Vault/Lock Overlay -->
+  <div id="lockOverlay" class="overlay hidden" role="dialog" aria-modal="true">
+    <div class="overlayCard">
+      <div class="overlayTitle">Locked</div>
+      <div class="overlaySub muted">Enter passcode to unlock.</div>
+      <input id="passInput" class="input big" inputmode="numeric" placeholder="••••" maxlength="8" />
+      <div class="quick">
+        <button id="unlockBtn" class="btn primary">Unlock</button>
+        <button id="usePanicBtn" class="btn ghost">Panic Mode</button>
+      </div>
+      <div id="lockMsg" class="tiny muted mt"></div>
+    </div>
+  </div>
+
+  <!-- Sex Log Overlay -->
+  <div id="sexOverlay" class="overlay hidden" role="dialog" aria-modal="true">
+    <div class="overlayCard wide">
+      <div class="overlayTitleRow">
+        <div class="overlayTitle">Sex Log</div>
+        <button id="sexClose" class="btn ghost sm">Close</button>
       </div>
 
-      <div class="dialog-b">
-        <div class="formgrid">
-          <label class="field">
-            <span>Date</span>
-            <input id="logDate" type="date" />
-          </label>
+      <div class="grid2">
+        <div>
+          <div class="formRow">
+            <label class="label">Date</label>
+            <input id="sexDate" class="input" type="date" />
+          </div>
 
-          <label class="field">
-            <span>Flow</span>
-            <select id="logFlow" class="select">
-              <option value="0">None</option>
-              <option value="1">Spotting</option>
-              <option value="2">Light</option>
-              <option value="3">Medium</option>
-              <option value="4">Heavy</option>
+          <div class="formRow">
+            <label class="label">Protection</label>
+            <select id="sexProtection" class="input">
+              <option value="protected">Protected</option>
+              <option value="unprotected">Unprotected</option>
+              <option value="withdrawal">Withdrawal</option>
+              <option value="unknown">Unknown</option>
             </select>
-          </label>
+          </div>
 
-          <label class="field">
-            <span>Energy</span>
-            <input id="logEnergy" type="range" min="0" max="100" value="55" />
-          </label>
+          <div class="formRow">
+            <label class="label">Notes (optional)</label>
+            <textarea id="sexNotes" class="input" rows="3" placeholder="Optional…"></textarea>
+          </div>
 
-          <label class="field">
-            <span>Mood</span>
-            <input id="logMood" type="range" min="0" max="100" value="55" />
-          </label>
+          <div class="quick">
+            <button id="sexSave" class="btn primary">Save Entry</button>
+            <button id="sexDeleteDay" class="btn ghost">Delete This Date</button>
+          </div>
 
-          <label class="field span2">
-            <span>Notes</span>
-            <textarea id="logNotes" class="textarea" rows="4" placeholder="Anything important today…"></textarea>
-          </label>
+          <div class="tiny muted mt">Sex log is always stored inside the encrypted vault if passcode is set.</div>
         </div>
 
-        <div class="row">
-          <button class="btn" id="saveLogBtn" type="button">Save Log</button>
-          <button class="btn ghost" value="cancel" type="submit">Cancel</button>
+        <div>
+          <div class="panelTitle">Recent</div>
+          <div id="sexList" class="list"></div>
         </div>
-
-        <div class="muted small">Stays on-device unless you enable sync/push.</div>
       </div>
-    </form>
-  </dialog>
-
-  <!-- CUSTOMIZE -->
-  <dialog id="themeDialog" class="dialog">
-    <form method="dialog" class="dialog-inner">
-      <div class="dialog-h">
-        <div class="dialog-t">Customization</div>
-        <button class="x" value="cancel" aria-label="Close">✕</button>
-      </div>
-
-      <div class="dialog-b">
-        <div class="presets">
-          <button class="preset" data-preset="noir" type="button">Noir</button>
-          <button class="preset" data-preset="neon" type="button">Neon</button>
-          <button class="preset" data-preset="ember" type="button">Ember</button>
-          <button class="preset" data-preset="rose" type="button">Rose</button>
-          <button class="preset" data-preset="ice" type="button">Ice</button>
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="formgrid">
-          <label class="field">
-            <span>Accent</span>
-            <input id="accentPicker" type="color" />
-          </label>
-          <label class="field">
-            <span>Background</span>
-            <input id="bgPicker" type="color" />
-          </label>
-          <label class="field">
-            <span>Card</span>
-            <input id="cardPicker" type="color" />
-          </label>
-          <label class="field">
-            <span>Text</span>
-            <input id="textPicker" type="color" />
-          </label>
-        </div>
-
-        <label class="field">
-          <span>Glow</span>
-          <input id="glowRange" type="range" min="0" max="100" />
-        </label>
-
-        <div class="row">
-          <button class="btn" id="applyThemeBtn" type="button">Apply</button>
-          <button class="btn ghost" id="resetThemeBtn" type="button">Reset</button>
-        </div>
-
-        <div class="muted small">Live preview updates instantly. Apply saves.</div>
-      </div>
-    </form>
-  </dialog>
+    </div>
+  </div>
 
   <script type="module" src="./app.js"></script>
 </body>

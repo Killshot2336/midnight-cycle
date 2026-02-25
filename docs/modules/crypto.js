@@ -1,74 +1,59 @@
-// WebCrypto Vault: AES-GCM with PBKDF2-derived key.
-// Export format is JSON with base64 fields.
+// AES-GCM with PBKDF2 passcode-derived key.
+// If no passcode set, we store plaintext vault JSON (still local-only).
 
-function encUtf8(s){ return new TextEncoder().encode(s); }
-function decUtf8(b){ return new TextDecoder().decode(b); }
+const te = new TextEncoder();
+const td = new TextDecoder();
 
-function b64(bytes){
-  let bin = "";
-  const arr = new Uint8Array(bytes);
-  for (let i=0;i<arr.length;i++) bin += String.fromCharCode(arr[i]);
-  return btoa(bin);
+function b64u(bytes) {
+  let s = "";
+  bytes.forEach(b => s += String.fromCharCode(b));
+  return btoa(s).replaceAll("+","-").replaceAll("/","_").replaceAll("=","");
 }
-function unb64(str){
-  const bin = atob(str);
-  const out = new Uint8Array(bin.length);
-  for (let i=0;i<bin.length;i++) out[i] = bin.charCodeAt(i);
-  return out;
-}
-
-export async function sha256Hex(text){
-  const buf = await crypto.subtle.digest("SHA-256", encUtf8(text));
-  const arr = new Uint8Array(buf);
-  return [...arr].map(b=>b.toString(16).padStart(2,"0")).join("");
+function unb64u(str) {
+  const s = str.replaceAll("-","+").replaceAll("_","/");
+  const pad = s.length % 4 ? "=".repeat(4 - (s.length % 4)) : "";
+  const bin = atob(s + pad);
+  const bytes = new Uint8Array(bin.length);
+  for (let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
 }
 
-async function deriveKey(password, saltBytes, iters=180000){
-  const keyMat = await crypto.subtle.importKey(
+export async function deriveKey(passcode, saltB64u) {
+  const salt = saltB64u ? unb64u(saltB64u) : crypto.getRandomValues(new Uint8Array(16));
+  const baseKey = await crypto.subtle.importKey(
     "raw",
-    encUtf8(password),
-    { name:"PBKDF2" },
+    te.encode(passcode),
+    { name: "PBKDF2" },
     false,
     ["deriveKey"]
   );
-
-  return crypto.subtle.deriveKey(
-    { name:"PBKDF2", salt: saltBytes, iterations: iters, hash:"SHA-256" },
-    keyMat,
-    { name:"AES-GCM", length: 256 },
+  const key = await crypto.subtle.deriveKey(
+    { name:"PBKDF2", salt, iterations: 250000, hash:"SHA-256" },
+    baseKey,
+    { name:"AES-GCM", length:256 },
     false,
     ["encrypt","decrypt"]
   );
+  return { key, saltB64u: saltB64u || b64u(salt) };
 }
 
-export async function encryptJSON(password, obj){
-  if (!password || password.length < 6) throw new Error("Password too short (min 6).");
-  const salt = crypto.getRandomValues(new Uint8Array(16));
+export async function encryptJSON(passcode, obj, saltB64u) {
+  const { key, saltB64u: saltOut } = await deriveKey(passcode, saltB64u);
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const key = await deriveKey(password, salt);
-
-  const plain = encUtf8(JSON.stringify(obj));
-  const cipher = await crypto.subtle.encrypt({ name:"AES-GCM", iv }, key, plain);
-
+  const data = te.encode(JSON.stringify(obj));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name:"AES-GCM", iv }, key, data));
   return {
     v: 1,
-    kdf: "PBKDF2-SHA256",
-    iters: 180000,
-    alg: "AES-256-GCM",
-    salt: b64(salt),
-    iv: b64(iv),
-    data: b64(cipher)
+    salt: saltOut,
+    iv: b64u(iv),
+    ct: b64u(ct)
   };
 }
 
-export async function decryptJSON(password, vault){
-  if (!vault || typeof vault !== "object") throw new Error("Invalid vault file.");
-  const salt = unb64(vault.salt);
-  const iv = unb64(vault.iv);
-  const data = unb64(vault.data);
-
-  const key = await deriveKey(password, salt, Number(vault.iters||180000));
-  const plainBuf = await crypto.subtle.decrypt({ name:"AES-GCM", iv }, key, data);
-  const text = decUtf8(plainBuf);
-  return JSON.parse(text);
+export async function decryptJSON(passcode, enc) {
+  const { key } = await deriveKey(passcode, enc.salt);
+  const iv = unb64u(enc.iv);
+  const ct = unb64u(enc.ct);
+  const pt = await crypto.subtle.decrypt({ name:"AES-GCM", iv }, key, ct);
+  return JSON.parse(td.decode(pt));
 }

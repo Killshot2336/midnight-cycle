@@ -1,89 +1,82 @@
-import { clamp, addDaysISO } from "./guard.js";
-import { predictionBand } from "./driftModel.js";
+import { clamp } from "./guard.js";
+import { inferCycleParams, nominalWindows, dayIndexFromLastStart } from "./cycleEngine.js";
 
-// Gaussian-ish bump function (no heavy math deps)
-function bump(x, mu, sigma){
-  const s = Math.max(1.2, sigma);
-  const z = (x - mu) / s;
-  return Math.exp(-0.5 * z * z);
-}
+// Returns true probabilities (sum to 1.0) for:
+// period, pms, ovulation, neutral
+export function phaseProbabilities(vault, iso) {
+  const params = inferCycleParams(vault);
+  const w = nominalWindows(params.meanCycleDays);
+  const idx = dayIndexFromLastStart(vault, iso);
 
-// Builds probability of next start across horizon days
-export function probabilityMap(stats, cycle, horizon=21, anomalyLevel=0){
-  // widen sigma if anomaly / volatility
-  const tight = 1 + (stats.volatility * 0.9) + (anomalyLevel * 0.8);
-  const band = predictionBand(stats.mean, stats.sd, tight);
-
-  const mu = band.expected;
-  const sigma = Math.max(2.0, stats.sd * tight);
-
-  const out = [];
-  for (let i=0;i<horizon;i++){
-    const dayOffset = cycle.dayIndex + i; // how far into cycle if nothing starts before then
-    // convert to offset-from-last-start window
-    const x = dayOffset;
-    const p = bump(x, mu, sigma);
-    out.push({
-      i,
-      dateISO: addDaysISO(new Date().toISOString().slice(0,10), i),
-      pRaw: p
-    });
+  // If no data, be honest: low confidence, mostly neutral.
+  if (idx === null) {
+    return finalize({ period:0.12, pms:0.12, ovu:0.12, neutral:0.64 }, 0.25, ["No period history yet."]);
   }
 
-  // normalize to 0..1 and also provide % (not sum-to-1 because “start can happen later than horizon”)
-  const max = Math.max(...out.map(o=>o.pRaw), 1e-9);
-  for (const o of out) o.p = clamp(o.pRaw / max, 0, 1);
+  const sd = Math.max(2, Math.min(10, params.sdCycleDays));
+  const cycle = w.cycle;
 
-  // derive window + peak
-  let peak = out[0];
-  for (const o of out) if (o.p > peak.p) peak = o;
+  // Map idx into [0, cycle) with soft wrap.
+  const t = idx % cycle;
 
-  return {
-    band,
-    peakInDays: peak.i,
-    peakProb: peak.p,
-    series: out.map(o=>({ dateISO:o.dateISO, p:o.p }))
+  // Gaussian-ish helpers (no heavy math)
+  const g = (x, mu, s) => Math.exp(-0.5 * ((x-mu)/s)*((x-mu)/s));
+
+  // Period center at day 0..periodLen
+  const periodCenter = 1.5;
+  const period = g(t, periodCenter, Math.max(1.4, sd*0.35));
+
+  // Ovulation near ovuDay
+  const ovu = g(t, w.ovuDay, Math.max(1.6, sd*0.45));
+
+  // PMS near pmsStart..cycle end
+  const pmsCenter = (w.pmsStart + (cycle-1)) / 2;
+  const pms = g(t, pmsCenter, Math.max(2.0, sd*0.55));
+
+  // Neutral baseline:
+  const neutral = 0.35;
+
+  // Normalize
+  let sum = period + ovu + pms + neutral;
+  let P = {
+    period: period/sum,
+    pms: pms/sum,
+    ovu: ovu/sum,
+    neutral: neutral/sum
   };
+
+  // Confidence: higher when stable + when one phase dominates
+  const maxP = Math.max(P.period, P.pms, P.ovu, P.neutral);
+  const stability = 1 - clamp(params.chaosScore, 0, 1) * 0.45; // chaotic reduces confidence
+  const confidence = clamp(0.25 + (maxP * 0.65) * stability, 0.15, 0.95);
+
+  const reasons = explain(P, params, w, idx);
+  return finalize(P, confidence, reasons);
 }
 
-export function drawProbability(canvas, series, accent="#7c4dff"){
-  if (!canvas) return;
-  const ctx = canvas.getContext("2d");
-  const W = canvas.width, H = canvas.height;
-  ctx.clearRect(0,0,W,H);
+function finalize(P, confidence, reasons) {
+  // exact normalize to 1.0
+  const sum = P.period + P.pms + P.ovu + P.neutral;
+  const out = {
+    period: P.period/sum,
+    pms: P.pms/sum,
+    ovu: P.ovu/sum,
+    neutral: P.neutral/sum,
+    confidence,
+    reasons
+  };
+  return out;
+}
 
-  // background grid
-  ctx.globalAlpha = 1;
-  ctx.fillStyle = "rgba(255,255,255,.02)";
-  ctx.fillRect(0,0,W,H);
-
-  ctx.strokeStyle = "rgba(255,255,255,.10)";
-  ctx.lineWidth = 1;
-  for (let i=0;i<=4;i++){
-    const y = Math.round((H-18) * (i/4)) + 8;
-    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
-  }
-
-  const n = series.length;
-  const padX = 14, padY = 12;
-  const x0 = padX, x1 = W - padX;
-  const y0 = H - padY, y1 = padY;
-
-  // bars
-  const barW = (x1-x0)/n;
-
-  for (let i=0;i<n;i++){
-    const p = series[i].p;
-    const x = x0 + i*barW;
-    const h = (y0 - y1) * p;
-    const y = y0 - h;
-
-    // base bar
-    ctx.fillStyle = "rgba(255,255,255,.08)";
-    ctx.fillRect(x+2, y1, Math.max(1, barW-4), (y0-y1));
-
-    // accent bar
-    ctx.fillStyle = `color-mix(in srgb, ${accent} 80%, rgba(0,229,255,.25))`;
-    ctx.fillRect(x+2, y, Math.max(1, barW-4), h);
-  }
+function explain(P, params, w, idx) {
+  const items = [];
+  items.push(`Model: ${params.chaotic ? "Irregular" : "Stable"} (uncertainty ${Math.round(params.sdCycleDays)}d).`);
+  if (idx !== null) items.push(`Day index from last start: ${idx}. Predicted cycle length ~${Math.round(params.meanCycleDays)}d.`);
+  const best = Object.entries({period:P.period, pms:P.pms, ovulation:P.ovu, neutral:P.neutral})
+    .sort((a,b)=>b[1]-a[1])[0][0];
+  if (best === "period") items.push(`Highest likelihood: Period window near last start.`);
+  if (best === "pms") items.push(`Highest likelihood: Late-cycle symptoms (PMS window).`);
+  if (best === "ovulation") items.push(`Highest likelihood: Mid-cycle peak (ovulation window).`);
+  if (best === "neutral") items.push(`No strong phase dominance today.`);
+  return items;
 }
