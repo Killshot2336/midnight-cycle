@@ -1,84 +1,142 @@
-// Forecast is pattern-based (not medical). It uses cycle day + recent check-ins to predict mood/energy/pain.
+import { clamp } from "./guard.js";
+import { inferStats, phaseForDay, buildSignalProfile } from "./cycleEngine.js";
+import { predictionBand } from "./driftModel.js";
 
-export function forecastForDay(cycleDay, dailyLog) {
-  const d = Math.max(1, Number(cycleDay || 1));
+function addDaysISO(iso, days){
+  const d = new Date(iso + "T00:00:00");
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0,10);
+}
 
-  const phase = phaseFromDay(d);
-  const base = baseSignals(phase.key);
+function confidenceLabel(score){
+  if (score >= 80) return "Very High";
+  if (score >= 60) return "High";
+  if (score >= 40) return "Medium";
+  return "Learning";
+}
 
-  // Recent self-report nudges the forecast
-  const checkin = dailyLog?.checkin || null;
-  const nudge = checkin ? nudgeFromCheckin(checkin) : { mood: 0, energy: 0, pain: 0 };
+export function detectAnomaly(state, stats){
+  // anomaly = unusual recent logs vs baseline + high volatility trend
+  const days = state.history?.days || {};
+  const today = new Date(new Date().toISOString().slice(0,10)+"T00:00:00");
 
-  const moodScore = clamp(base.mood + nudge.mood, 1, 5, 3);
-  const energyScore = clamp(base.energy + nudge.energy, 1, 5, 3);
-  const painScore = clamp(base.pain + nudge.pain, 1, 5, 2);
+  let recent=0, heavyShift=0;
+  const vals=[];
+  for (let i=0;i<10;i++){
+    const d = new Date(today); d.setDate(d.getDate()-i);
+    const iso = d.toISOString().slice(0,10);
+    const L = days[iso];
+    if (!L) continue;
+    recent++;
+    const e = Number(L.energy ?? 55);
+    const m = Number(L.mood ?? 55);
+    if (Number.isFinite(e) && Number.isFinite(m)) vals.push((e+m)/2);
+  }
 
-  const mood = label5("Mood", moodScore);
-  const energy = label5("Energy", energyScore);
-  const pain = label5("Pain", painScore);
+  let level = 0;
+  let reason = "";
+
+  if (vals.length >= 5){
+    const avg = vals.reduce((a,b)=>a+b,0)/vals.length;
+    // "shift" defined as far from neutral 55-ish
+    heavyShift = Math.abs(avg - 55);
+    if (heavyShift >= 14) { level = 0.7; reason = "Recent signals shifted strongly (possible stress/illness/travel)."; }
+    else if (heavyShift >= 9) { level = 0.4; reason = "Recent signals shifted (possible short-term disruption)."; }
+  }
+
+  // volatility-driven widening
+  if (stats.volatility >= 0.75){
+    level = Math.max(level, 0.5);
+    if (!reason) reason = "High irregularity detected (wide variance).";
+  }
+
+  if (recent <= 2){
+    level = Math.max(level, 0.3);
+    if (!reason) reason = "Low recent logging; confidence reduced.";
+  }
+
+  return { level: clamp(level,0,1), reason: reason || "Normal stability." };
+}
+
+export function forecast(state, cycle, todayISO){
+  const stats = inferStats(state);
+  const periodLen = clamp(Number(state.basics?.periodLen || 5), 2, 12);
+
+  const anomaly = detectAnomaly(state, stats);
+  const tightness = 1 + stats.volatility*0.8 + anomaly.level*0.7;
+  const band = predictionBand(stats.mean, stats.sd, tightness);
+
+  const earlyISO = addDaysISO(cycle.lastStart, band.early);
+  const expectedISO = addDaysISO(cycle.lastStart, band.expected);
+  const lateISO = addDaysISO(cycle.lastStart, band.late);
+
+  // confidence score
+  const days = state.history?.days || {};
+  const today = new Date(todayISO + "T00:00:00");
+  let recent=0;
+  for (let i=0;i<7;i++){
+    const d = new Date(today); d.setDate(d.getDate()-i);
+    if (days[d.toISOString().slice(0,10)]) recent++;
+  }
+  const recency = clamp(recent/7, 0, 1);
+  const sampleScore = clamp(stats.samples/10, 0, 1);
+  const stability = clamp((10 - stats.sd)/8, 0, 1);
+
+  let confidenceScore = Math.round(100 * (sampleScore*0.45 + stability*0.35 + recency*0.20));
+  confidenceScore = Math.round(confidenceScore * (1 - anomaly.level*0.22));
+  const conf = confidenceLabel(confidenceScore);
+
+  const phase = phaseForDay(cycle.dayIndex, periodLen);
+
+  const profile = buildSignalProfile(state);
+  const p = profile?.[cycle.dayIndex] || null;
+
+  const energy = p?.energy ?? Math.round(55 + (stability*10) - (stats.volatility*10));
+  const mood   = p?.mood ?? Math.round(55 + (recency*8) - (stats.volatility*8));
+
+  const energyText = energy >= 70 ? "High / driven" : (energy >= 50 ? "Normal / steady" : "Low / drained");
+  const moodText   = mood >= 70 ? "Clear / confident" : (mood >= 50 ? "Stable / normal" : "Sensitive / heavy");
+
+  let bodyText = "Neutral";
+  if (phase === "Menstrual") bodyText = "Cramp risk + low endurance";
+  else if (phase === "Recovery") bodyText = "Energy returning; lighter body load";
+  else if (phase === "Baseline") bodyText = "Most stable window";
+  else if (phase === "Premenstrual") bodyText = "Irritability + bloating risk";
+
+  const expectedText = `Next start window: ${earlyISO} → ${lateISO} (expected ~${expectedISO}).`;
+
+  const driftNote =
+    stats.meanTrend > 0.25 ? "Trend: longer recently." :
+    stats.meanTrend < -0.25 ? "Trend: shorter recently." :
+    "Trend: stable.";
+
+  const insightText =
+    `${expectedText} Confidence: ${conf} (${confidenceScore}). ${driftNote} ` +
+    `Anomaly: ${Math.round(anomaly.level*100)}% • ${anomaly.reason}`;
+
+  const forecastBadge =
+    confidenceScore >= 80 ? "LOCKED" :
+    confidenceScore >= 60 ? "STABLE" :
+    confidenceScore >= 40 ? "FORMING" : "LEARNING";
+
+  const startDeltaDays = (new Date(expectedISO) - new Date(todayISO + "T00:00:00")) / (1000*60*60*24);
+  const heat = clamp(1 - Math.abs(startDeltaDays)/12, 0, 1);
 
   return {
-    badge: phase.badge,
-    phase: phase.name,
-    phaseKey: phase.key,
-    energy,
-    mood,
-    pain,
-    why: {
-      phase: phase.why,
-      energy: base.energyWhy,
-      mood: base.moodWhy
-    }
+    stats,
+    anomaly,
+    confidenceLabel: conf,
+    confidenceScore,
+    forecastBadge,
+
+    phaseText: phase,
+    expectedText,
+    energyText,
+    moodText,
+    bodyText,
+    insightText,
+
+    heat,
+    next: { earlyISO, expectedISO, lateISO }
   };
-}
-
-function phaseFromDay(d) {
-  // Typical mapping; drift model adjusts range separately. This is “best-effort”.
-  if (d <= 5) return { key: "menses", name: "Menstrual", badge: "MENSTRUAL", why: "Early cycle days (often lower energy / higher discomfort)." };
-  if (d <= 13) return { key: "follicular", name: "Follicular", badge: "FOLLICULAR", why: "Build phase (often steadier mood / rising energy)." };
-  if (d <= 16) return { key: "ovulation", name: "Mid-cycle", badge: "MID-CYCLE", why: "Mid-cycle window (often higher energy / social)." };
-  return { key: "luteal", name: "Late cycle", badge: "LATE-CYCLE", why: "Late cycle (some people see irritability / fatigue)." };
-}
-
-function baseSignals(phaseKey) {
-  switch (phaseKey) {
-    case "menses":
-      return { mood: 2.7, energy: 2.3, pain: 3.6, moodWhy: "Early cycle tends to dip mood for many people.", energyWhy: "Energy commonly lower during early cycle." };
-    case "follicular":
-      return { mood: 3.6, energy: 3.7, pain: 1.8, moodWhy: "Build phase often steadier emotionally.", energyWhy: "Energy often rises through this phase." };
-    case "ovulation":
-      return { mood: 4.0, energy: 4.0, pain: 1.7, moodWhy: "Mid-cycle often correlates with higher mood.", energyWhy: "Energy often peaks near mid-cycle." };
-    case "luteal":
-    default:
-      return { mood: 3.0, energy: 2.9, pain: 2.4, moodWhy: "Late cycle can bring irritability or sensitivity.", energyWhy: "Late cycle can bring fatigue for some people." };
-  }
-}
-
-function nudgeFromCheckin(c) {
-  // c has values 1..5 where 3 is normal. Convert to small deltas.
-  const mood = (Number(c.mood || 3) - 3) * 0.25;
-  const energy = (Number(c.energy || 3) - 3) * 0.25;
-  const pain = (Number(c.pain || 3) - 3) * 0.25;
-  return { mood, energy, pain };
-}
-
-function label5(kind, score) {
-  const s = Math.round(score);
-  if (kind === "Energy") {
-    return s <= 2 ? "Low" : s === 3 ? "Medium" : "High";
-  }
-  if (kind === "Mood") {
-    return s <= 2 ? "Fragile" : s === 3 ? "Steady" : "Up";
-  }
-  if (kind === "Pain") {
-    return s <= 2 ? "Low" : s === 3 ? "Medium" : "High";
-  }
-  return "—";
-}
-
-function clamp(v, lo, hi, fb) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return fb;
-  return Math.max(lo, Math.min(hi, n));
 }

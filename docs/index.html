@@ -2,424 +2,393 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#0b0d12" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#0b0b12" />
   <title>Midnight</title>
-
   <link rel="manifest" href="./manifest.json" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <div id="bg" aria-hidden="true">
-    <div class="bgMesh"></div>
-    <div class="bgNoise"></div>
-    <div class="bgVignette"></div>
-  </div>
-
-  <!-- LOCK SCREEN -->
-  <div id="lock" class="lock hidden" aria-hidden="true">
-    <div class="lockCard">
-      <div class="lockTop">
-        <div class="mark"></div>
-        <div>
-          <div class="lockTitle" id="lockTitle">Midnight</div>
-          <div class="tiny muted" id="lockSub">Private • local lock</div>
-        </div>
-      </div>
-
-      <div class="divider"></div>
-
-      <div id="lockState" class="tiny muted">Locked</div>
-
-      <div class="lockGrid">
-        <label class="field">
-          <span class="k">PIN</span>
-          <input id="pinInput" type="password" inputmode="numeric" autocomplete="current-password" placeholder="••••" maxlength="12" />
-        </label>
-
-        <div class="row">
-          <button id="unlockBtn" class="btn primary">Unlock</button>
-          <button id="lockHelpBtn" class="btn ghost">Help</button>
-        </div>
-
-        <div id="pinSetup" class="pinSetup hidden">
-          <div class="tiny muted">No PIN set yet. Create one:</div>
-          <label class="field">
-            <span class="k">New PIN</span>
-            <input id="newPin" type="password" inputmode="numeric" autocomplete="new-password" placeholder="4–12 digits" maxlength="12" />
-          </label>
-          <label class="field">
-            <span class="k">Confirm PIN</span>
-            <input id="confirmPin" type="password" inputmode="numeric" autocomplete="new-password" placeholder="repeat PIN" maxlength="12" />
-          </label>
-          <div class="row">
-            <button id="setPinBtn" class="btn primary">Set PIN</button>
-            <button id="skipPinBtn" class="btn ghost">Skip</button>
-          </div>
-        </div>
-
-        <div class="tiny muted" id="lockHint">
-          Tip: Stealth mode can hide words like “period” on lock screen notifications.
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <main id="app" class="app hidden" aria-hidden="true">
+  <div id="app" class="app">
     <header class="topbar">
       <div class="brand">
-        <div class="brandMark" aria-hidden="true"></div>
-        <div class="brandText">
-          <div class="titleRow">
-            <h1 class="title" id="appTitle">Midnight</h1>
-            <span class="pill" id="modePill">LOCAL</span>
-          </div>
-          <div class="sub" id="appSub">Offline-first • private by default</div>
-        </div>
+        <div class="brand-title" id="appTitle">Midnight</div>
+        <div class="brand-sub" id="appSub">Local-first cycle intelligence. Learns irregular bodies.</div>
       </div>
 
-      <div class="topActions">
-        <button id="quickAccentBtn" class="iconBtn" title="Cycle accent"><span class="ico">✦</span></button>
-        <button id="customizeBtn" class="btn">Customize</button>
+      <div class="top-actions">
+        <button class="btn ghost" id="navDashboardBtn" type="button">Dashboard</button>
+        <button class="btn ghost" id="navTimelineBtn" type="button">Timeline</button>
+        <button class="btn ghost" id="navInsightsBtn" type="button">Insights</button>
+        <button class="btn ghost" id="navVaultBtn" type="button">Vault</button>
+        <button class="btn ghost" id="customizeBtn" type="button">Customize</button>
       </div>
     </header>
 
-    <section class="layout">
-      <aside class="stack" id="leftCol">
-        <div class="card hero widget" data-widget="cycle">
-          <div class="cardHead">
-            <div class="cardTitle">Cycle</div>
-            <div class="chipRow">
-              <span class="chip" id="phaseBadge">—</span>
-              <span class="chip soft" id="cycleStatus">Loading…</span>
-            </div>
-          </div>
+    <section class="hud card">
+      <div class="hud-left">
+        <div class="hud-label">Status</div>
+        <div class="hud-big" id="cycleStatus">Loading…</div>
+        <div class="hud-sub" id="cycleMeta">—</div>
+      </div>
+      <div class="hud-right">
+        <div class="pill" id="cycleBadge">—</div>
+        <div class="pill subtle" id="confidenceBadge">—</div>
+        <div class="pulse" aria-hidden="true"></div>
+      </div>
+    </section>
 
-          <div class="heroGrid">
-            <div class="metric">
-              <div class="k">Cycle day</div>
-              <div class="v" id="dayText">—</div>
-            </div>
-            <div class="metric">
-              <div class="k">Next start</div>
-              <div class="v" id="nextRange">—</div>
-            </div>
-            <div class="metric">
-              <div class="k">Mean</div>
-              <div class="v" id="cycleMean">—</div>
-            </div>
-            <div class="metric">
-              <div class="k">Variability</div>
-              <div class="v" id="cycleVar">—</div>
-            </div>
+    <!-- DASHBOARD VIEW -->
+    <main id="viewDashboard" class="grid">
+      <section class="card span2">
+        <div class="card-h">
+          <div class="card-t">Intelligence System</div>
+          <div class="pillrow">
+            <div class="badge subtle" id="tierBadge">—</div>
+            <div class="badge" id="scoreBadge">Score —</div>
           </div>
-
-          <div class="actions">
-            <button id="logStartBtn" class="btn primary">Log Period Start</button>
-            <button id="undoBtn" class="btn ghost">Undo Last</button>
-          </div>
-
-          <div class="hint" id="cycleHint">Log starts consistently. The forecast window tightens over time.</div>
         </div>
 
-        <div class="card widget" data-widget="forecast">
-          <div class="cardHead">
-            <div class="cardTitle">Today forecast</div>
-            <span class="muted" id="todayISO">—</span>
-          </div>
-
-          <div class="forecastGrid">
-            <div class="forecastItem">
-              <div class="k">Phase</div>
-              <div class="v" id="phaseText">—</div>
-              <div class="tiny muted" id="phaseWhy">—</div>
+        <div class="card-b">
+          <div class="tierwrap">
+            <div class="tierheader">
+              <div class="tiername" id="tierName">—</div>
+              <div class="tiersub" id="tierSub">—</div>
             </div>
-            <div class="forecastItem">
-              <div class="k">Energy</div>
-              <div class="v" id="energyText">—</div>
-              <div class="tiny muted" id="energyWhy">—</div>
+
+            <div class="tierbar"><div class="tierbarfill" id="tierBarFill" style="width:0%"></div></div>
+
+            <div class="tierrow">
+              <div class="muted small" id="tierProgressText">—</div>
+              <div class="pill subtle" id="tierPercent">0%</div>
             </div>
-            <div class="forecastItem">
-              <div class="k">Mood</div>
-              <div class="v" id="moodText">—</div>
-              <div class="tiny muted" id="moodWhy">—</div>
-            </div>
-          </div>
 
-          <div class="divider"></div>
+            <div class="divider"></div>
 
-          <div class="row">
-            <div class="muted">Confidence</div>
-            <div class="bar"><div class="barFill" id="confidenceBar" style="width:45%"></div></div>
-          </div>
-          <div class="tiny muted" id="confidenceText">Learning mode</div>
-        </div>
-
-        <div class="card widget" data-widget="checkin">
-          <div class="cardHead">
-            <div class="cardTitle">6:30pm check-in</div>
-            <span class="chip soft" id="checkinStatus">—</span>
-          </div>
-          <div class="tiny muted">One-tap log to train predictions.</div>
-
-          <div class="checkinGrid">
-            <div class="chipGroup">
-              <div class="k">Mood</div>
-              <div class="chips" id="moodChips"></div>
-            </div>
-            <div class="chipGroup">
-              <div class="k">Energy</div>
-              <div class="chips" id="energyChips"></div>
-            </div>
-            <div class="chipGroup">
-              <div class="k">Pain</div>
-              <div class="chips" id="painChips"></div>
-            </div>
-            <div class="chipGroup">
-              <div class="k">Sleep</div>
-              <div class="chips" id="sleepChips"></div>
-            </div>
-            <div class="chipGroup">
-              <div class="k">Stress</div>
-              <div class="chips" id="stressChips"></div>
-            </div>
-          </div>
-
-          <div class="row">
-            <button id="saveCheckinBtn" class="btn primary">Save check-in</button>
-            <button id="clearCheckinBtn" class="btn ghost">Clear</button>
-          </div>
-
-          <div class="tiny muted" id="checkinSaved">—</div>
-        </div>
-      </aside>
-
-      <section class="stack" id="rightCol">
-        <div class="card wide widget" data-widget="calendar">
-          <div class="cardHead">
-            <div class="cardTitle">Calendar</div>
-            <div class="row" style="gap:10px">
-              <button id="prevMonthBtn" class="btn ghost small">‹</button>
-              <div class="mono tiny" id="monthLabel">—</div>
-              <button id="nextMonthBtn" class="btn ghost small">›</button>
-            </div>
-          </div>
-
-          <div class="calLegend">
-            <span class="legendDot start"></span><span class="tiny muted">Period start</span>
-            <span class="legendDot likely"></span><span class="tiny muted">Likely window</span>
-            <span class="legendDot possible"></span><span class="tiny muted">Possible window</span>
-          </div>
-
-          <div class="calendar" id="calendarGrid"></div>
-        </div>
-
-        <div class="card wide widget" data-widget="log">
-          <div class="cardHead">
-            <div class="cardTitle">Private log</div>
-            <span class="muted">Today</span>
-          </div>
-
-          <div class="grid2">
-            <div class="miniCard">
-              <div class="k">Sex (optional)</div>
-              <div class="row">
-                <button id="logSexBtn" class="btn ghost small">Log</button>
-                <span class="muted" id="sexCount">—</span>
+            <div class="branches">
+              <div class="branch">
+                <div class="branchh">
+                  <div class="branchname" id="branchAName">—</div>
+                  <div class="pill subtle" id="branchAStatus">—</div>
+                </div>
+                <div class="muted small" id="branchADesc">—</div>
               </div>
-              <div class="tiny muted" id="sexModeNote">Stored locally (privacy mode)</div>
-            </div>
 
-            <div class="miniCard">
-              <div class="k">Symptoms</div>
-              <div class="row">
-                <select id="symptomSelect" class="select">
-                  <option value="">Pick…</option>
-                  <option value="cramps">Cramps</option>
-                  <option value="headache">Headache</option>
-                  <option value="bloating">Bloating</option>
-                  <option value="acne">Acne</option>
-                  <option value="back_pain">Back pain</option>
-                  <option value="nausea">Nausea</option>
-                  <option value="tender_breasts">Tender breasts</option>
-                  <option value="insomnia">Insomnia</option>
-                  <option value="fatigue">Fatigue</option>
-                  <option value="anxiety">Anxiety</option>
-                  <option value="irritability">Irritability</option>
-                  <option value="appetite">Appetite swings</option>
-                </select>
-                <button id="addSymptomBtn" class="btn ghost small">Add</button>
+              <div class="branch">
+                <div class="branchh">
+                  <div class="branchname" id="branchBName">—</div>
+                  <div class="pill subtle" id="branchBStatus">—</div>
+                </div>
+                <div class="muted small" id="branchBDesc">—</div>
               </div>
-              <div class="tiny muted" id="todayLog">—</div>
-            </div>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="row" style="flex-wrap:wrap">
-            <button id="exportBtn" class="btn">Export backup</button>
-            <button id="importBtn" class="btn ghost">Import / Merge</button>
-            <button id="panicWipeBtn" class="btn ghost">Panic wipe (local)</button>
-            <input id="importFile" type="file" accept="application/json" hidden />
-          </div>
-          <div class="tiny muted" id="backupNote">Backups never include your PIN.</div>
-        </div>
-
-        <div class="card wide widget" data-widget="notify">
-          <div class="cardHead">
-            <div class="cardTitle">Notifications</div>
-            <span class="chip soft" id="pushStatus">—</span>
-          </div>
-
-          <div class="grid2">
-            <div class="miniCard">
-              <div class="k">Daily time</div>
-              <div class="v"><span id="notifyTimeLabel">18:30</span> <span class="muted">(local)</span></div>
-              <div class="tiny muted">Android push supported. iPhone web push is limited.</div>
             </div>
 
-            <div class="miniCard">
-              <div class="k">Lock screen text</div>
-              <div class="v" id="notifPreview">Midnight: Check-in</div>
-              <div class="tiny muted">Stealth by default.</div>
-            </div>
-          </div>
+            <div class="divider"></div>
 
-          <div class="actions">
-            <button id="enablePushBtn" class="btn primary">Enable Push</button>
-            <button id="disablePushBtn" class="btn ghost">Disable</button>
+            <div class="explain">
+              <div class="explain-h">
+                <div class="card-t">Explainability</div>
+                <div class="badge subtle" id="explainMode">Realtime</div>
+              </div>
+              <div class="muted" id="explainText">—</div>
+              <div class="divider"></div>
+              <div class="muted small" id="nextHint">—</div>
+            </div>
           </div>
         </div>
       </section>
-    </section>
 
-    <!-- CUSTOMIZE / SETTINGS -->
-    <div id="modal" class="modal hidden" aria-hidden="true">
-      <div class="modalBackdrop" id="modalBackdrop"></div>
-
-      <div class="modalPanel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
-        <div class="modalHead">
-          <div>
-            <div id="settingsTitle" class="modalTitle">Customize</div>
-            <div class="tiny muted">Saved per-device. No account required.</div>
+      <section class="card">
+        <div class="card-h">
+          <div class="card-t">Forecast</div>
+          <div class="badge subtle" id="forecastBadge">—</div>
+        </div>
+        <div class="card-b">
+          <div class="kv">
+            <div class="k">Phase</div><div class="v" id="phaseText">—</div>
+            <div class="k">Expected</div><div class="v" id="expectedText">—</div>
+            <div class="k">Energy</div><div class="v" id="energyText">—</div>
+            <div class="k">Mood</div><div class="v" id="moodText">—</div>
+            <div class="k">Body</div><div class="v" id="bodyText">—</div>
           </div>
-          <button id="closeSettingsBtn" class="iconBtn" title="Close"><span class="ico">✕</span></button>
+          <div class="divider"></div>
+          <div class="muted" id="insightText">—</div>
+
+          <div class="divider"></div>
+
+          <div class="card-t">Probability Map (21 days)</div>
+          <div class="probWrap">
+            <canvas id="probCanvas" width="860" height="140"></canvas>
+          </div>
+          <div class="muted small" id="probLegend">—</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-h">
+          <div class="card-t">Controls</div>
+          <div class="badge" id="modelBadge">—</div>
         </div>
 
-        <div class="modalBody">
-          <div class="settingsGrid">
-            <div class="settingBlock">
-              <div class="blockTitle">Presets</div>
-              <div class="presetRow">
-                <button class="btn ghost small presetBtn" data-preset="obsidian">Obsidian</button>
-                <button class="btn ghost small presetBtn" data-preset="nebula">Nebula</button>
-                <button class="btn ghost small presetBtn" data-preset="ember">Ember</button>
-                <button class="btn ghost small presetBtn" data-preset="toxic">Toxic</button>
-                <button class="btn ghost small presetBtn" data-preset="voidrose">Void Rose</button>
-              </div>
-
-              <div class="divider"></div>
-
-              <div class="row" style="flex-wrap:wrap">
-                <button id="savePresetBtn" class="btn small">Save as preset</button>
-                <button id="exportThemeBtn" class="btn ghost small">Export theme</button>
-                <button id="importThemeBtn" class="btn ghost small">Import theme</button>
-                <input id="importThemeFile" type="file" accept="application/json" hidden />
-              </div>
-
-              <div class="tiny muted" id="themeMsg">—</div>
-            </div>
-
-            <div class="settingBlock">
-              <div class="blockTitle">Accent</div>
-              <div class="accentRow" id="accentRow"></div>
-              <div class="tiny muted">Dual accent gradients + glow.</div>
-            </div>
-
-            <div class="settingBlock">
-              <div class="blockTitle">Material</div>
-              <div class="row">
-                <span class="muted">Glow</span>
-                <input id="glowRange" type="range" min="0" max="100" value="80" />
-                <span class="mono tiny" id="glowLabel">80</span>
-              </div>
-              <div class="row">
-                <span class="muted">Blur</span>
-                <input id="blurRange" type="range" min="6" max="24" value="14" />
-                <span class="mono tiny" id="blurLabel">14</span>
-              </div>
-              <div class="row">
-                <span class="muted">Grain</span>
-                <input id="grainRange" type="range" min="0" max="100" value="20" />
-                <span class="mono tiny" id="grainLabel">20</span>
-              </div>
-            </div>
-
-            <div class="settingBlock">
-              <div class="blockTitle">Layout</div>
-              <div class="row">
-                <span class="muted">Density</span>
-                <input id="densityRange" type="range" min="0" max="100" value="45" />
-                <span class="mono tiny" id="densityLabel">45</span>
-              </div>
-              <div class="row">
-                <span class="muted">Radius</span>
-                <input id="radiusRange" type="range" min="12" max="34" value="24" />
-                <span class="mono tiny" id="radiusLabel">24</span>
-              </div>
-              <div class="row">
-                <span class="muted">Font</span>
-                <input id="fontRange" type="range" min="85" max="120" value="100" />
-                <span class="mono tiny" id="fontLabel">100</span>
-              </div>
-            </div>
-
-            <div class="settingBlock">
-              <div class="blockTitle">Stealth</div>
-              <label class="toggle">
-                <input id="stealthToggle" type="checkbox" />
-                <span class="toggleUI"></span>
-                <span class="muted">Stealth notifications</span>
-              </label>
-              <label class="toggle" style="margin-top:10px">
-                <input id="localSensitiveToggle" type="checkbox" checked />
-                <span class="toggleUI"></span>
-                <span class="muted">Keep sex + notes local-only</span>
-              </label>
-              <div class="tiny muted">Stealth hides “period” words on lock screen by default.</div>
-            </div>
-
-            <div class="settingBlock">
-              <div class="blockTitle">Dashboard</div>
-              <div class="tiny muted">Drag to reorder. Toggle to hide.</div>
-              <div class="dashList" id="dashList"></div>
-            </div>
-
-            <div class="settingBlock">
-              <div class="blockTitle">App Lock</div>
-              <label class="toggle">
-                <input id="lockToggle" type="checkbox" />
-                <span class="toggleUI"></span>
-                <span class="muted">Require PIN on open</span>
-              </label>
-              <div class="row" style="margin-top:10px; flex-wrap:wrap">
-                <button id="changePinBtn" class="btn ghost small">Change PIN</button>
-                <button id="removePinBtn" class="btn ghost small">Remove PIN</button>
-              </div>
-              <div class="tiny muted">PIN never leaves the device.</div>
-            </div>
+        <div class="card-b">
+          <div class="row">
+            <button class="btn" id="logStartBtn" type="button">Log Period Start</button>
+            <button class="btn ghost" id="logDayBtn" type="button">Log Day</button>
+            <button class="btn ghost" id="undoBtn" type="button">Undo Start</button>
           </div>
 
           <div class="divider"></div>
 
-          <div class="modalFoot">
-            <button id="resetAllBtn" class="btn ghost">Reset all</button>
-            <button id="closeSettingsBtn2" class="btn">Done</button>
+          <div class="formgrid">
+            <label class="field">
+              <span>Typical cycle length</span>
+              <input id="meanCycleInput" type="number" min="18" max="60" placeholder="e.g. 28" />
+            </label>
+
+            <label class="field">
+              <span>Typical period length</span>
+              <input id="periodLenInput" type="number" min="2" max="12" placeholder="e.g. 5" />
+            </label>
+          </div>
+
+          <button class="btn ghost full" id="saveBasicsBtn" type="button">Save Basics</button>
+
+          <div class="divider"></div>
+
+          <div class="card-t">Notifications</div>
+          <div class="formgrid">
+            <label class="field">
+              <span>Daily reminder time</span>
+              <input id="notifyTime" type="time" value="18:30" />
+            </label>
+            <label class="field">
+              <span>Timezone</span>
+              <input id="tzInput" type="text" placeholder="America/Chicago" />
+            </label>
+          </div>
+          <div class="row">
+            <button class="btn" id="enablePushBtn" type="button">Enable Push</button>
+            <button class="btn ghost" id="disablePushBtn" type="button">Disable</button>
+            <div class="badge subtle" id="pushStatus">—</div>
+          </div>
+          <div class="muted small" id="pushHelp">—</div>
+        </div>
+      </section>
+
+      <section class="card span2">
+        <div class="card-h">
+          <div class="card-t">Calendar</div>
+          <div class="pillrow">
+            <button class="btn ghost" id="prevMonthBtn" type="button">◀</button>
+            <div class="pill" id="monthLabel">—</div>
+            <button class="btn ghost" id="nextMonthBtn" type="button">▶</button>
           </div>
         </div>
+        <div class="card-b">
+          <div id="calendarMount"></div>
+          <div class="hint" id="calHint">Tap a day to log.</div>
+        </div>
+      </section>
+
+      <section class="card span2">
+        <div class="card-h">
+          <div class="card-t">Diagnostics</div>
+          <div class="pillrow">
+            <div class="badge subtle" id="diagHealth">—</div>
+            <div class="badge subtle" id="diagMode">Local-first</div>
+          </div>
+        </div>
+        <div class="card-b">
+          <div class="kv">
+            <div class="k">Storage</div><div class="v" id="diagStorage">—</div>
+            <div class="k">Backups</div><div class="v" id="diagBackups">—</div>
+            <div class="k">Push</div><div class="v" id="diagPush">—</div>
+            <div class="k">Last error</div><div class="v mono" id="diagError">—</div>
+          </div>
+          <div class="divider"></div>
+          <div class="muted small" id="diagHint">—</div>
+        </div>
+      </section>
+    </main>
+
+    <!-- TIMELINE VIEW -->
+    <main id="viewTimeline" class="stack hidden">
+      <section class="card">
+        <div class="card-h">
+          <div class="card-t">Timeline Intelligence (14 days)</div>
+          <div class="badge subtle" id="timelineBadge">—</div>
+        </div>
+        <div class="card-b">
+          <div class="muted" id="timelineExplain">—</div>
+          <div class="divider"></div>
+          <div id="timelineMount" class="timeline"></div>
+        </div>
+      </section>
+    </main>
+
+    <!-- INSIGHTS VIEW -->
+    <main id="viewInsights" class="stack hidden">
+      <section class="card">
+        <div class="card-h">
+          <div class="card-t">Insights</div>
+          <div class="badge subtle" id="insightsBadge">—</div>
+        </div>
+        <div class="card-b">
+          <div class="muted" id="insightsExplain">—</div>
+          <div class="divider"></div>
+          <div id="insightsMount" class="cards"></div>
+        </div>
+      </section>
+    </main>
+
+    <!-- VAULT VIEW -->
+    <main id="viewVault" class="stack hidden">
+      <section class="card">
+        <div class="card-h">
+          <div class="card-t">Vault (Data Fortress)</div>
+          <div class="badge subtle" id="vaultBadge">—</div>
+        </div>
+        <div class="card-b">
+          <div class="muted">
+            Export/import is encrypted with a password. No password stored. Auto-backups run silently.
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="formgrid">
+            <label class="field span2">
+              <span>Password (required for export/import)</span>
+              <input id="vaultPass" type="password" placeholder="Set a password you’ll remember" />
+            </label>
+          </div>
+
+          <div class="row">
+            <button class="btn" id="exportBtn" type="button">Export Encrypted</button>
+            <label class="btn ghost" for="importFile" style="cursor:pointer;">Import Encrypted</label>
+            <input id="importFile" type="file" accept=".midnight.json" style="display:none;" />
+            <button class="btn ghost" id="restoreBackupBtn" type="button">Restore Latest Backup</button>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="kv">
+            <div class="k">Auto backups</div><div class="v" id="vaultBackups">—</div>
+            <div class="k">Integrity</div><div class="v" id="vaultIntegrity">—</div>
+            <div class="k">Last vault action</div><div class="v mono" id="vaultLast">—</div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <div class="muted small">Local-first • self-healing • encrypted vault • probability + anomaly intelligence</div>
+    </footer>
+  </div>
+
+  <!-- LOG DAY -->
+  <dialog id="logDialog" class="dialog">
+    <form method="dialog" class="dialog-inner">
+      <div class="dialog-h">
+        <div class="dialog-t">Log Day</div>
+        <button class="x" value="cancel" aria-label="Close">✕</button>
       </div>
-    </div>
-  </main>
+
+      <div class="dialog-b">
+        <div class="formgrid">
+          <label class="field">
+            <span>Date</span>
+            <input id="logDate" type="date" />
+          </label>
+
+          <label class="field">
+            <span>Flow</span>
+            <select id="logFlow" class="select">
+              <option value="0">None</option>
+              <option value="1">Spotting</option>
+              <option value="2">Light</option>
+              <option value="3">Medium</option>
+              <option value="4">Heavy</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Energy</span>
+            <input id="logEnergy" type="range" min="0" max="100" value="55" />
+          </label>
+
+          <label class="field">
+            <span>Mood</span>
+            <input id="logMood" type="range" min="0" max="100" value="55" />
+          </label>
+
+          <label class="field span2">
+            <span>Notes</span>
+            <textarea id="logNotes" class="textarea" rows="4" placeholder="Anything important today…"></textarea>
+          </label>
+        </div>
+
+        <div class="row">
+          <button class="btn" id="saveLogBtn" type="button">Save Log</button>
+          <button class="btn ghost" value="cancel" type="submit">Cancel</button>
+        </div>
+
+        <div class="muted small">Stays on-device unless you enable sync/push.</div>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- CUSTOMIZE -->
+  <dialog id="themeDialog" class="dialog">
+    <form method="dialog" class="dialog-inner">
+      <div class="dialog-h">
+        <div class="dialog-t">Customization</div>
+        <button class="x" value="cancel" aria-label="Close">✕</button>
+      </div>
+
+      <div class="dialog-b">
+        <div class="presets">
+          <button class="preset" data-preset="noir" type="button">Noir</button>
+          <button class="preset" data-preset="neon" type="button">Neon</button>
+          <button class="preset" data-preset="ember" type="button">Ember</button>
+          <button class="preset" data-preset="rose" type="button">Rose</button>
+          <button class="preset" data-preset="ice" type="button">Ice</button>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="formgrid">
+          <label class="field">
+            <span>Accent</span>
+            <input id="accentPicker" type="color" />
+          </label>
+          <label class="field">
+            <span>Background</span>
+            <input id="bgPicker" type="color" />
+          </label>
+          <label class="field">
+            <span>Card</span>
+            <input id="cardPicker" type="color" />
+          </label>
+          <label class="field">
+            <span>Text</span>
+            <input id="textPicker" type="color" />
+          </label>
+        </div>
+
+        <label class="field">
+          <span>Glow</span>
+          <input id="glowRange" type="range" min="0" max="100" />
+        </label>
+
+        <div class="row">
+          <button class="btn" id="applyThemeBtn" type="button">Apply</button>
+          <button class="btn ghost" id="resetThemeBtn" type="button">Reset</button>
+        </div>
+
+        <div class="muted small">Live preview updates instantly. Apply saves.</div>
+      </div>
+    </form>
+  </dialog>
 
   <script type="module" src="./app.js"></script>
 </body>

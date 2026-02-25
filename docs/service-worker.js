@@ -1,55 +1,61 @@
-const CACHE = "midnight-cache-v1";
+const CACHE = "midnight-cache-v3";
+
 const ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
+  "./manifest.json",
   "./firebase.js",
   "./notifications.js",
-  "./manifest.json",
+
   "./modules/guard.js",
-  "./modules/storage.js",
   "./modules/theme.js",
-  "./modules/pin.js",
-  "./modules/cycleEngine.js",
+  "./modules/storage.js",
+  "./modules/backup.js",
+  "./modules/crypto.js",
+
   "./modules/driftModel.js",
+  "./modules/cycleEngine.js",
   "./modules/forecastEngine.js",
-  "./modules/calendar.js"
+  "./modules/probability.js",
+
+  "./modules/calendar.js",
+  "./modules/timeline.js",
+  "./modules/insights.js",
+  "./modules/skilltree.js"
 ];
 
-self.addEventListener("install", (evt) => {
-  evt.waitUntil((async () => {
-    const cache = await caches.open(CACHE);
-    await cache.addAll(ASSETS);
+self.addEventListener("install", (e) => {
+  e.waitUntil((async () => {
+    const c = await caches.open(CACHE);
+    await c.addAll(ASSETS);
     self.skipWaiting();
   })());
 });
 
-self.addEventListener("activate", (evt) => {
-  evt.waitUntil((async () => {
+self.addEventListener("activate", (e) => {
+  e.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.map((k) => (k !== CACHE ? caches.delete(k) : Promise.resolve())));
+    await Promise.all(keys.map(k => (k === CACHE ? null : caches.delete(k))));
     self.clients.claim();
   })());
 });
 
-self.addEventListener("fetch", (evt) => {
-  const req = evt.request;
-  const url = new URL(req.url);
-
-  // Only handle same-origin
+self.addEventListener("fetch", (e) => {
+  const url = new URL(e.request.url);
   if (url.origin !== location.origin) return;
 
-  evt.respondWith((async () => {
-    const cached = await caches.match(req);
+  e.respondWith((async () => {
+    const cached = await caches.match(e.request);
     if (cached) return cached;
+
     try {
-      const res = await fetch(req);
-      const cache = await caches.open(CACHE);
-      cache.put(req, res.clone());
+      const res = await fetch(e.request);
+      const c = await caches.open(CACHE);
+      c.put(e.request, res.clone());
       return res;
     } catch {
-      // fallback
       return caches.match("./index.html");
     }
   })());

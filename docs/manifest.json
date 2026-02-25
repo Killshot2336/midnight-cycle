@@ -2,15 +2,8 @@
   "name": "Midnight",
   "short_name": "Midnight",
   "start_url": "./index.html",
-  "scope": "./",
   "display": "standalone",
-  "background_color": "#0b0d12",
-  "theme_color": "#0b0d12",
-  "icons": [
-    {
-      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAABMUlEQVR4nO3aMQ6CMBQF0eSgYJwB8xgk9wJYwCk0a6pKp8gR0q1n2gk0cQhQh7xv9VJt7c7pZ0mS5cA8qjvQGg7c0w7b0Q0l1JgWmQw1b9r3k0b4pQmJYw0a9c1w0Q2wqQmJYw0a9c1w0Q2wqQmJYw0a9c1w0Q2wqQmJYw0a9c1w0Q2wqQmJYw0a9c1w0Q2wqQmJYw0a9c1w0Q2wqQmJYw0a9c1w0Q2wqQmJYw0a9c1w0Q2wqQmJYw0a9c1w0Q2wqQmJYw0a9c1w0Q2wqQmJYw0a9c1w0Q2wqQmJYw0a9c1w0Q2wqQmJYw0Y9j9sB9uV1o3mZyQAAAABJRU5ErkJggg==",
-      "sizes": "64x64",
-      "type": "image/png"
-    }
-  ]
+  "background_color": "#0b0b12",
+  "theme_color": "#0b0b12",
+  "icons": []
 }
