@@ -37,7 +37,9 @@ function cloneDay(row) {
   if (!row) return null;
   return {
     ...row,
-    symptoms: Array.isArray(row.symptoms) ? [...row.symptoms] : row.symptoms
+    symptoms: Array.isArray(row.symptoms) ? [...row.symptoms] : row.symptoms,
+    context: Array.isArray(row.context) ? [...row.context] : row.context,
+    symptomLevel: row.symptomLevel && typeof row.symptomLevel === "object" ? { ...row.symptomLevel } : row.symptomLevel
   };
 }
 

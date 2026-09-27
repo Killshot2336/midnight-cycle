@@ -33,10 +33,16 @@ export function offsetPhrase(offset) {
   return `${n} day${n === 1 ? "" : "s"} before bleeding`;
 }
 
+export function symptomLabel(vault, id) {
+  const custom = (vault?.profile?.customSymptoms || []).find((s) => s?.id === id);
+  if (custom?.label) return custom.label;
+  return SYMPTOM_CHIPS.find((c) => c.id === id)?.label || "A symptom";
+}
+
 export function insightSentence(vault) {
   const top = topSymptom(vault);
   if (!top) return "";
-  const lead = LEAD[top.id] || "A symptom shows up";
+  const lead = LEAD[top.id] || `${symptomLabel(vault, top.id)} shows up`;
   return `${lead} about ${offsetPhrase(top.offset)}, in ${top.cyclesNear} of your last ${top.cyclesSeen} cycles.`;
 }
 

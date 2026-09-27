@@ -1,4 +1,4 @@
-const CACHE = "midnight-v8";
+const CACHE = "midnight-v9";
 const PRECACHE = [
   "./",
   "./index.html",
@@ -12,6 +12,7 @@ const PRECACHE = [
   "./modules/backup.js",
   "./modules/crypto.js",
   "./modules/cycleModel.js",
+  "./modules/cycleBook.js",
   "./modules/cycleEngine.js",
   "./modules/forecastEngine.js",
   "./modules/probability.js",

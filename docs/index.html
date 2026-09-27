@@ -22,6 +22,7 @@
       </div>
 
       <div class="topActions">
+        <button id="coverBtn" class="btn ghost" type="button" title="Cover the private pages">Cover</button>
         <button id="panicBtn" class="btn ghost" title="Panic Mode">Panic</button>
         <button id="lockBtn" class="btn ghost" title="Lock / Vault">Lock</button>
       </div>
@@ -47,9 +48,20 @@
             <button id="undoBtn" class="btn ghost sm hidden" type="button">Undo</button>
             <button id="backTodayBtn" class="btn ghost sm hidden" type="button">Back to today</button>
             <button id="sexLogBtn" class="btn hidden" type="button">Sex log</button>
+            <button id="openTodayBtn" class="btn ghost sm" type="button">This day</button>
           </div>
 
           <div id="symptomChips" class="chips"></div>
+          <p class="tiny muted">Tap a symptom again to mark it strong.</p>
+          <details id="symptomEditor" class="symptomEditor">
+            <summary>Your symptoms</summary>
+            <div id="symptomHide" class="checkStack"></div>
+            <div class="quick mt">
+              <input id="customSymptom" class="input" type="text" maxlength="24" placeholder="Add one, like nausea" />
+              <button id="addSymptomBtn" class="btn" type="button">Add</button>
+            </div>
+          </details>
+          <p id="suppliesLine" class="lead hidden"></p>
           <button id="moreToggle" class="btn ghost sm" type="button">More</button>
           <div id="moreBox" class="moreBox hidden">
             <div class="formRow">
@@ -71,12 +83,16 @@
                 <option value="dry">Dry</option>
                 <option value="sticky">Sticky</option>
                 <option value="creamy">Creamy</option>
-                <option value="eggwhite">Egg-white</option>
+                <option value="eggwhite">Like raw egg white</option>
               </select>
             </div>
             <div class="formRow">
               <label class="label" for="notesInput">Notes</label>
               <textarea id="notesInput" class="input" rows="2" placeholder="Optional"></textarea>
+            </div>
+            <div id="pillRow" class="formRow hidden">
+              <label class="label" for="pillInput">Pill</label>
+              <label class="checkInline"><input id="pillInput" type="checkbox" /> Taken today</label>
             </div>
           </div>
 
@@ -111,10 +127,25 @@
         <div id="rangeNote" class="tiny muted"></div>
       </section>
 
+      <section class="card isPrivate" id="cycleBookCard">
+        <div class="cardTitle">Your periods</div>
+        <p id="heavyLine" class="lead"></p>
+        <label class="label" for="noteSearch">Search notes</label>
+        <input id="noteSearch" class="input" type="search" placeholder="Migraine, travel, cramps" />
+        <div id="noteHits" class="list"></div>
+        <div id="periodList" class="list mt"></div>
+      </section>
+
       <section class="card isPrivate">
         <div class="cardTitleRow">
           <div class="cardTitle">Summary</div>
           <button id="copySummary" class="btn ghost sm" type="button">Copy</button>
+        </div>
+        <div class="rangeRow">
+          <input id="visitFrom" class="input" type="date" />
+          <input id="visitTo" class="input" type="date" />
+          <button id="copyVisit" class="btn ghost sm" type="button">Copy this range</button>
+          <button id="copyShare" class="btn ghost sm" type="button">Copy a note to send</button>
         </div>
         <pre id="summaryText" class="summary"></pre>
         <div id="copyNote" class="tiny muted"></div>
@@ -290,6 +321,7 @@
             <option value="irregular">Irregular cycles</option>
           </select>
         </div>
+        <p class="tiny muted">Choosing Cycling turns period forecasts on. After pregnancy, any other choice keeps them paused until then.</p>
 
         <div class="formRow">
           <label class="label" for="goal">What you want</label>
@@ -303,9 +335,41 @@
         <div class="divider"></div>
 
         <div class="formRow">
-          <label class="label" for="notifyTime">Daily reminder</label>
+          <label class="label" for="remindWhen">In-app reminder</label>
+          <select id="remindWhen" class="input">
+            <option value="both">Day before and the day</option>
+            <option value="before">The day before</option>
+            <option value="day">The day itself</option>
+            <option value="off">Off</option>
+          </select>
+        </div>
+        <p class="tiny muted">The reminder uses the time below. Phone push still says Check-in.</p>
+
+        <div class="formRow">
+          <label class="label" for="notifyTime">Reminder time</label>
           <input id="notifyTime" class="input" type="time" value="18:30" />
         </div>
+
+        <div class="formRow">
+          <label class="label" for="tempUnit">Temperature</label>
+          <select id="tempUnit" class="input">
+            <option value="C">Celsius</option>
+            <option value="F">Fahrenheit</option>
+          </select>
+        </div>
+
+        <div class="formRow">
+          <label class="label" for="supplyText">Before a period</label>
+          <textarea id="supplyText" class="input" rows="3" placeholder="Pads&#10;Pain relief"></textarea>
+        </div>
+        <p class="tiny muted">Shown when bleeding is likely today or tomorrow.</p>
+
+        <div class="formRow">
+          <label class="label" for="pastStarts">Earlier period starts</label>
+          <textarea id="pastStarts" class="input" rows="3" placeholder="2025-11-02&#10;2025-12-01"></textarea>
+        </div>
+        <button id="saveStartsBtn" class="btn" type="button">Add these starts</button>
+        <p class="tiny muted mt">One date per line. Future dates are skipped. This stays in the vault on this device.</p>
 
         <div class="formRow">
           <label class="label" for="tz">Timezone</label>
@@ -364,6 +428,8 @@
           <button id="vaultExportBtn" class="btn" type="button">Export vault</button>
           <button id="vaultImportBtn" class="btn" type="button">Import vault</button>
           <button id="setPasscodeBtn" class="btn ghost" type="button">Set passcode</button>
+          <button id="changePasscodeBtn" class="btn ghost" type="button">Change passcode</button>
+          <button id="removePasscodeBtn" class="btn ghost" type="button">Remove passcode</button>
         </div>
 
         <input id="vaultFile" type="file" accept="application/json" class="hidden" />
@@ -455,6 +521,15 @@
           </div>
 
           <div class="formRow">
+            <label class="label" for="sexPain">Pain</label>
+            <select id="sexPain" class="input">
+              <option value="">None noted</option>
+              <option value="mild">Mild</option>
+              <option value="strong">Strong</option>
+            </select>
+          </div>
+
+          <div class="formRow">
             <label class="label" for="sexNotes">Notes (optional)</label>
             <textarea id="sexNotes" class="input" rows="3" placeholder="Optional"></textarea>
           </div>
@@ -472,6 +547,26 @@
           <div id="sexList" class="list"></div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div id="dayOverlay" class="overlay hidden" role="dialog" aria-modal="true">
+    <div class="overlayCard wide">
+      <div class="overlayTitleRow">
+        <div id="dayTitle" class="overlayTitle">Day</div>
+        <button id="dayClose" class="btn ghost sm" type="button">Close</button>
+      </div>
+      <div id="dayBody"></div>
+    </div>
+  </div>
+
+  <div id="periodOverlay" class="overlay hidden" role="dialog" aria-modal="true">
+    <div class="overlayCard wide">
+      <div class="overlayTitleRow">
+        <div id="periodTitle" class="overlayTitle">Period</div>
+        <button id="periodClose" class="btn ghost sm" type="button">Close</button>
+      </div>
+      <div id="periodBody"></div>
     </div>
   </div>
 

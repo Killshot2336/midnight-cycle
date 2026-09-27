@@ -19,10 +19,29 @@ import { renderCalendar, monthLabel, shiftMonth } from "./modules/calendar.js";
 import { renderTimeline } from "./modules/timeline.js";
 import { dataGates } from "./modules/skilltree.js";
 import { SYMPTOM_CHIPS, insightSentence, clinicianSummary } from "./modules/insights.js";
-import { hasPasscode, isLocked, setPasscode, unlock as unlockVault, lockNow, setLocked, getSalt, validPasscode } from "./modules/lock.js";
+import { hasPasscode, isLocked, setPasscode, unlock as unlockVault, lockNow, setLocked, getSalt, validPasscode, clearPasscode } from "./modules/lock.js";
 import { encryptJSON } from "./modules/crypto.js";
 import { ensureSexDefaults, seedSexDateInput, setSexEntry, getSexEntry, deleteSexEntry, listSexEntries } from "./modules/sexLog.js";
 import { shouldShowBanner, markBannerShown } from "./modules/notifyFallback.js";
+import {
+  periodPages,
+  heavyDayPattern,
+  heavyDaySentence,
+  mentionSentence,
+  windowSentence,
+  searchNotes,
+  shareSentence,
+  visitText,
+  parseStartDates,
+  visibleSymptoms,
+  reminderRelevant,
+  supplyLines,
+  symptomLevelLabel,
+  CONTEXTS,
+  PRODUCTS,
+  MUCUS,
+  START_FLOW
+} from "./modules/cycleBook.js";
 
 const FLOWS = [
   ["none", "None"],
@@ -133,7 +152,39 @@ const el = {
   obSituation: document.getElementById("obSituation"),
   obGoal: document.getElementById("obGoal"),
   obSave: document.getElementById("obSave"),
-  obSkip: document.getElementById("obSkip")
+  obSkip: document.getElementById("obSkip"),
+  coverBtn: document.getElementById("coverBtn"),
+  openTodayBtn: document.getElementById("openTodayBtn"),
+  pillInput: document.getElementById("pillInput"),
+  pillRow: document.getElementById("pillRow"),
+  suppliesLine: document.getElementById("suppliesLine"),
+  heavyLine: document.getElementById("heavyLine"),
+  noteSearch: document.getElementById("noteSearch"),
+  noteHits: document.getElementById("noteHits"),
+  periodList: document.getElementById("periodList"),
+  visitFrom: document.getElementById("visitFrom"),
+  visitTo: document.getElementById("visitTo"),
+  copyVisit: document.getElementById("copyVisit"),
+  copyShare: document.getElementById("copyShare"),
+  remindWhen: document.getElementById("remindWhen"),
+  tempUnit: document.getElementById("tempUnit"),
+  supplyText: document.getElementById("supplyText"),
+  pastStarts: document.getElementById("pastStarts"),
+  saveStartsBtn: document.getElementById("saveStartsBtn"),
+  changePasscodeBtn: document.getElementById("changePasscodeBtn"),
+  removePasscodeBtn: document.getElementById("removePasscodeBtn"),
+  symptomHide: document.getElementById("symptomHide"),
+  customSymptom: document.getElementById("customSymptom"),
+  addSymptomBtn: document.getElementById("addSymptomBtn"),
+  dayOverlay: document.getElementById("dayOverlay"),
+  dayTitle: document.getElementById("dayTitle"),
+  dayBody: document.getElementById("dayBody"),
+  dayClose: document.getElementById("dayClose"),
+  periodOverlay: document.getElementById("periodOverlay"),
+  periodTitle: document.getElementById("periodTitle"),
+  periodBody: document.getElementById("periodBody"),
+  periodClose: document.getElementById("periodClose"),
+  sexPain: document.getElementById("sexPain")
 };
 
 let fb = null;
@@ -150,6 +201,10 @@ let lastHeadline = "";
 let monthMotion = "";
 let decorKey = "";
 let fillingMore = false;
+let sheetISO = null;
+let openPeriodStart = null;
+let removeArmed = false;
+let clearArmed = "";
 
 main().catch((e) => {
   console.error("Fatal init error:", e);
@@ -284,7 +339,11 @@ function wireUI() {
   });
 
   el.situation.addEventListener("change", async () => {
-    vault.profile.situation = el.situation.value;
+    const prev = vault.profile.situation;
+    const next = el.situation.value;
+    vault.profile.situation = next;
+    if (prev === "pregnancy" && next !== "cycling" && next !== "pregnancy") vault.profile.forecastHold = true;
+    if (next === "cycling" || next === "pregnancy") vault.profile.forecastHold = false;
     await persistVault();
     renderAll();
   });
@@ -488,6 +547,7 @@ function wireUI() {
     if (!iso) return;
     setSexEntry(vault, iso, {
       protection: el.sexProtection.value,
+      pain: el.sexPain.value,
       notes: el.sexNotes.value
     });
     await persistVault();
@@ -531,19 +591,90 @@ function wireUI() {
     await persistVault();
     renderAll();
   });
+
+  el.coverBtn.addEventListener("click", async () => {
+    vault.profile.discreet = !vault.profile.discreet;
+    if (vault.profile.discreet) {
+      closeDay();
+      closePeriod();
+    }
+    await persistVault();
+    renderAll();
+  });
+  el.openTodayBtn.addEventListener("click", () => openDay(todayISO(vault.profile.tz || CONFIG.defaults.tz)));
+  el.dayClose.addEventListener("click", () => closeDay());
+  el.periodClose.addEventListener("click", () => closePeriod());
+  el.dayBody.addEventListener("click", onDayClick);
+  el.dayBody.addEventListener("change", onDayChange);
+  el.periodBody.addEventListener("click", onPeriodClick);
+
+  el.pillInput.addEventListener("change", () => saveMore({ pillTaken: el.pillInput.checked }));
+  el.noteSearch.addEventListener("input", () => renderNoteHits());
+  el.periodList.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-period]");
+    if (!btn) return;
+    openPeriod(btn.dataset.period);
+  });
+  el.noteHits.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-note-day]");
+    if (!btn) return;
+    openDay(btn.dataset.noteDay);
+  });
+
+  el.copyVisit.addEventListener("click", async () => {
+    const from = el.visitFrom.value;
+    const to = el.visitTo.value;
+    if (!from || !to) {
+      el.copyNote.textContent = "Choose a start and an end.";
+      return;
+    }
+    const text = visitText(vault, from <= to ? from : to, from <= to ? to : from, todayISO(vault.profile.tz));
+    await copyText(text, el.copyNote);
+  });
+  el.copyShare.addEventListener("click", async () => {
+    const tz = vault.profile.tz || CONFIG.defaults.tz;
+    const model = buildForecast(vault, tz, 1, todayISO(tz)).model;
+    const text = shareSentence(model);
+    await copyText(text || "No period window to share yet.", el.copyNote);
+  });
+
+  el.remindWhen.addEventListener("change", async () => {
+    vault.profile.remindWhen = el.remindWhen.value;
+    await persistVault();
+    renderAll();
+  });
+  el.tempUnit.addEventListener("change", async () => {
+    vault.profile.tempUnit = el.tempUnit.value;
+    await persistVault();
+    renderAll();
+  });
+  el.supplyText.addEventListener("change", async () => {
+    vault.profile.supplyText = el.supplyText.value;
+    await persistVault();
+    renderAll();
+  });
+  el.saveStartsBtn.addEventListener("click", async () => savePastStarts());
+  el.changePasscodeBtn.addEventListener("click", () => changePasscode());
+  el.removePasscodeBtn.addEventListener("click", () => removePasscode());
+  el.addSymptomBtn.addEventListener("click", () => addCustomSymptom());
+  el.symptomHide.addEventListener("change", onHideSymptom);
 }
 
 function snapshotDay(vaultObj, iso) {
   const row = vaultObj.daily?.[iso];
   if (!row) return null;
-  return { ...row, symptoms: Array.isArray(row.symptoms) ? [...row.symptoms] : row.symptoms };
+  return {
+    ...row,
+    symptoms: Array.isArray(row.symptoms) ? [...row.symptoms] : row.symptoms,
+    context: Array.isArray(row.context) ? [...row.context] : row.context,
+    symptomLevel: row.symptomLevel && typeof row.symptomLevel === "object" ? { ...row.symptomLevel } : row.symptomLevel
+  };
 }
 
 function loggingISO() {
   const tz = vault.profile.tz || CONFIG.defaults.tz;
   const today = todayISO(tz);
-  const iso = selectedISO || today;
-  return { tz, today, iso, future: iso > today };
+  return { tz, today, iso: today, future: false };
 }
 
 async function saveMore(patch) {
@@ -573,9 +704,17 @@ async function toggleSymptom(id) {
   const { iso, future } = loggingISO();
   if (future) return;
   const cur = new Set(vault.daily?.[iso]?.symptoms || []);
-  if (cur.has(id)) cur.delete(id);
-  else cur.add(id);
-  const prev = updateDay(vault, iso, { symptoms: [...cur] });
+  const levels = { ...(vault.daily?.[iso]?.symptomLevel || {}) };
+  if (!cur.has(id)) {
+    cur.add(id);
+    levels[id] = "mild";
+  } else if (levels[id] !== "strong") {
+    levels[id] = "strong";
+  } else {
+    cur.delete(id);
+    delete levels[id];
+  }
+  const prev = updateDay(vault, iso, { symptoms: [...cur], symptomLevel: levels });
   pushUndo({ iso, prev });
   await persistVault();
   renderAll();
@@ -584,6 +723,10 @@ async function toggleSymptom(id) {
 function setPanic(state) {
   panic = !!state;
   document.body.classList.toggle("panicMode", panic);
+  if (panic) {
+    closeDay();
+    closePeriod();
+  }
   if (panic) {
     el.appTitle.textContent = "Calendar";
     el.appSub.textContent = "Schedule overview.";
@@ -621,6 +764,7 @@ function loadSexEntryIntoForm() {
   const iso = el.sexDate.value;
   const entry = getSexEntry(vault, iso);
   el.sexProtection.value = entry?.protection || "protected";
+  el.sexPain.value = entry?.pain || "";
   el.sexNotes.value = entry?.notes || "";
 }
 
@@ -641,7 +785,7 @@ function refreshSexList() {
     title.textContent = it.date;
     const pill = document.createElement("div");
     pill.className = "pill";
-    pill.textContent = it.protection || "";
+    pill.textContent = [it.protection, it.pain].filter(Boolean).join(" · ");
     top.appendChild(title);
     top.appendChild(pill);
     const sub = document.createElement("div");
@@ -662,7 +806,6 @@ function renderAll() {
 
   const tz = vault.profile.tz || CONFIG.defaults.tz;
   const today = todayISO(tz);
-  const selected = selectedISO || today;
   if (!monthAnchor) monthAnchor = `${today.slice(0, 7)}-01`;
 
   const showOnboard = !panic && !vault.profile.onboarded && !(hasPasscode() && isLocked());
@@ -690,12 +833,9 @@ function renderAll() {
 
   const forecast = buildForecast(vault, tz, 14, today);
   const model = forecast.model;
-  const day = vault.daily?.[selected] || {};
+  const day = vault.daily?.[today] || {};
 
-  const future = selected > today;
-  el.logDayLabel.textContent = selected === today
-    ? "Today"
-    : (future ? `${formatWeekday(selected)} is still a forecast` : `Logging ${formatWeekday(selected)}`);
+  el.logDayLabel.textContent = "Today";
   const nextHeadline = headlineFor(model);
   const headlineChanged = lastHeadline !== "" && nextHeadline !== lastHeadline;
   el.headline.textContent = nextHeadline;
@@ -713,11 +853,14 @@ function renderAll() {
   el.fertileLine.textContent = fertileSentence(model);
 
   el.undoBtn.classList.toggle("hidden", undoStack.length === 0);
-  el.backTodayBtn.classList.toggle("hidden", selected === today);
+  el.backTodayBtn.classList.add("hidden");
   el.sexLogBtn.classList.toggle("hidden", vault.profile.goal !== "fertility");
+  document.body.classList.toggle("discreet", !!vault.profile.discreet);
+  if (el.coverBtn) el.coverBtn.textContent = vault.profile.discreet ? "Show" : "Cover";
+  if (el.pillRow) el.pillRow.classList.toggle("hidden", vault.profile.situation !== "hormonal");
 
   renderFlow(day.flow || "");
-  renderChips(day.symptoms || []);
+  renderChips(day);
   fillMore(day);
   renderTimeline(el.timeline, forecast);
   el.calLabel.textContent = monthLabel(monthAnchor);
@@ -726,19 +869,29 @@ function renderAll() {
     vault,
     model,
     anchorISO: monthAnchor,
-    selectedISO: selected,
+    selectedISO: sheetISO || today,
     today,
     calCharm: decor.calCharm,
     charm: decor.charm,
     onSelect: (iso) => {
-      selectedISO = iso === today ? null : iso;
-      renderAll();
+      if (vault.profile.discreet) {
+        vault.profile.discreet = false;
+        persistVault().then(() => renderAll());
+        return;
+      }
+      openDay(iso);
     }
   });
 
   el.summaryText.textContent = clinicianSummary(vault, model);
   renderGates(model);
   setForecastMood(model);
+
+  paintSupplies(model, today);
+  renderCycleBook(today);
+  renderSymptomEditor();
+  if (sheetISO) renderDaySheet();
+  if (openPeriodStart) renderPeriod();
 
   maybeShowFallbackBanner(model, today, tz);
   cueMotion();
@@ -750,6 +903,10 @@ function syncControls() {
   setIfIdle(el.goal, profile.goal || "bleed");
   setIfIdle(el.tz, profile.tz || CONFIG.defaults.tz);
   setIfIdle(el.notifyTime, profile.notifyTime || CONFIG.defaults.notifyTime);
+  setIfIdle(el.remindWhen, profile.remindWhen || "both");
+  setIfIdle(el.tempUnit, profile.tempUnit || "C");
+  setIfIdle(el.supplyText, profile.supplyText || "");
+  if (el.bbtInput) el.bbtInput.placeholder = (profile.tempUnit || "C") === "F" ? "°F" : "°C";
 }
 
 function setIfIdle(node, value) {
@@ -811,6 +968,472 @@ function fillCharmPicker(container, choice) {
     if (id === "none") btn.textContent = "·";
     else btn.innerHTML = charmSvg(id);
     container.appendChild(btn);
+  }
+}
+
+function paintSupplies(model, today) {
+  const lines = supplyLines(vault);
+  const show = lines.length && reminderRelevant({ ...model, inBleed: false }, today, "both") && !model.inBleed;
+  el.suppliesLine.classList.toggle("hidden", !show);
+  el.suppliesLine.textContent = show ? `Have ready: ${lines.join(", ")}` : "";
+}
+
+function renderCycleBook(today) {
+  const pages = periodPages(vault, today);
+  el.heavyLine.textContent = heavyDaySentence(heavyDayPattern(vault, today));
+  el.periodList.replaceChildren();
+  if (!pages.length) {
+    const empty = document.createElement("div");
+    empty.className = "tiny muted";
+    empty.textContent = "Logged periods will gather here.";
+    el.periodList.appendChild(empty);
+    return;
+  }
+  for (const page of pages.slice(0, 24)) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "listItem";
+    btn.dataset.period = page.start;
+    const title = document.createElement("div");
+    title.className = "listItemTitle";
+    const cycle = page.cycleLength ? ` · ${page.cycleLength}-day cycle` : "";
+    title.textContent = `${formatWeekday(page.start)} · ${page.bleedDays} bleeding day${page.bleedDays === 1 ? "" : "s"}${cycle}`;
+    const sub = document.createElement("div");
+    sub.className = "listItemSub";
+    sub.textContent = [windowSentence(page), mentionSentence(page)].filter(Boolean).join(" ");
+    btn.appendChild(title);
+    btn.appendChild(sub);
+    el.periodList.appendChild(btn);
+  }
+}
+
+function renderNoteHits() {
+  const hits = searchNotes(vault, el.noteSearch.value);
+  el.noteHits.replaceChildren();
+  for (const hit of hits) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "listItem";
+    btn.dataset.noteDay = hit.iso;
+    const title = document.createElement("div");
+    title.className = "listItemTitle";
+    title.textContent = formatWeekday(hit.iso);
+    const sub = document.createElement("div");
+    sub.className = "listItemSub";
+    sub.textContent = hit.notes;
+    btn.appendChild(title);
+    btn.appendChild(sub);
+    el.noteHits.appendChild(btn);
+  }
+}
+
+function renderSymptomEditor() {
+  const hidden = new Set(vault.profile.hiddenSymptoms || []);
+  const catalog = [
+    ...visibleSymptoms({ profile: {} }),
+    ...(vault.profile.customSymptoms || []).map((item) => ({ id: item.id, label: item.label }))
+  ];
+  const seen = new Set();
+  el.symptomHide.replaceChildren();
+  for (const chip of catalog) {
+    if (!chip?.id || seen.has(chip.id)) continue;
+    seen.add(chip.id);
+    const label = document.createElement("label");
+    label.className = "checkInline";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.dataset.hideSymptom = chip.id;
+    input.checked = !hidden.has(chip.id);
+    label.appendChild(input);
+    label.appendChild(document.createTextNode(chip.label));
+    el.symptomHide.appendChild(label);
+  }
+}
+
+function openDay(iso) {
+  if (!iso || panic) return;
+  sheetISO = iso;
+  el.dayOverlay.classList.remove("hidden");
+  renderDaySheet();
+}
+
+function closeDay() {
+  sheetISO = null;
+  el.dayOverlay.classList.add("hidden");
+}
+
+function openPeriod(start) {
+  openPeriodStart = start;
+  clearArmed = "";
+  el.periodOverlay.classList.remove("hidden");
+  renderPeriod();
+}
+
+function closePeriod() {
+  openPeriodStart = null;
+  clearArmed = "";
+  el.periodOverlay.classList.add("hidden");
+}
+
+function renderDaySheet() {
+  if (!sheetISO) return;
+  const tz = vault.profile.tz || CONFIG.defaults.tz;
+  const today = todayISO(tz);
+  const iso = sheetISO;
+  const future = iso > today;
+  const day = vault.daily?.[iso] || {};
+  el.dayTitle.textContent = formatWeekday(iso);
+  const root = document.createElement("div");
+  root.className = "dayBlock";
+
+  const flowRow = document.createElement("div");
+  flowRow.className = "flowRow";
+  for (const [value, label] of FLOWS) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "flowBtn" + (day.flow === value ? " on" : "");
+    btn.dataset.dayFlow = value;
+    btn.textContent = label;
+    btn.disabled = future;
+    flowRow.appendChild(btn);
+  }
+  root.appendChild(flowRow);
+
+  const chips = document.createElement("div");
+  chips.className = "chips";
+  const on = new Set(day.symptoms || []);
+  for (const chip of visibleSymptoms(vault)) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "chip" + (on.has(chip.id) ? " on" : "");
+    btn.dataset.daySymptom = chip.id;
+    btn.textContent = symptomLevelLabel(vault, chip.id, on.has(chip.id) ? day.symptomLevel?.[chip.id] : "");
+    btn.disabled = future;
+    chips.appendChild(btn);
+  }
+  root.appendChild(chips);
+
+  root.appendChild(labeledSelect("Pain", "dayPain", [["", "Not logged"], ...Array.from({ length: 11 }, (_, n) => [String(n), String(n)])], day.pain == null ? "" : String(day.pain), future));
+  root.appendChild(checkField("dayClots", "Clots", !!day.clots, future));
+  root.appendChild(checkField("daySoaked", "Soaked through", !!day.soaked, future));
+  root.appendChild(labeledSelect("Product", "dayProduct", PRODUCTS, day.product || "", future));
+
+  const contexts = document.createElement("div");
+  contexts.className = "contextRow";
+  const have = new Set(day.context || []);
+  for (const [value, label] of CONTEXTS) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "chip" + (have.has(value) ? " on" : "");
+    btn.dataset.dayContext = value;
+    btn.textContent = label;
+    btn.disabled = future;
+    contexts.appendChild(btn);
+  }
+  root.appendChild(contexts);
+
+  if (vault.profile.situation === "hormonal") root.appendChild(checkField("dayPill", "Pill taken", !!day.pillTaken, future));
+  root.appendChild(labeledSelect("LH test", "dayLh", [["", "Not logged"], ["neg", "Negative"], ["pos", "Positive"]], day.lh || "", future));
+  root.appendChild(labeledSelect("Mucus", "dayMucus", MUCUS, day.mucus || "", future));
+
+  const note = document.createElement("textarea");
+  note.className = "input";
+  note.rows = 2;
+  note.dataset.dayNotes = "1";
+  note.placeholder = "Note";
+  note.value = day.notes || "";
+  note.disabled = future;
+  root.appendChild(note);
+
+  const temp = document.createElement("input");
+  temp.className = "input";
+  temp.type = "number";
+  temp.step = "0.01";
+  temp.dataset.dayBbt = "1";
+  temp.placeholder = (vault.profile.tempUnit || "C") === "F" ? "Waking temperature °F" : "Waking temperature °C";
+  temp.value = typeof day.bbt === "number" ? String(day.bbt) : "";
+  temp.disabled = future;
+  root.appendChild(temp);
+
+  el.dayBody.replaceChildren(root);
+}
+
+function renderPeriod() {
+  const today = todayISO(vault.profile.tz || CONFIG.defaults.tz);
+  const page = periodPages(vault, today).find((item) => item.start === openPeriodStart);
+  if (!page) {
+    closePeriod();
+    return;
+  }
+  el.periodTitle.textContent = formatWeekday(page.start);
+  const root = document.createElement("div");
+  root.className = "dayBlock";
+  for (const text of [windowSentence(page), mentionSentence(page), page.cycleLength ? `The next cycle was ${page.cycleLength} days.` : ""]) {
+    if (!text) continue;
+    const p = document.createElement("p");
+    p.className = "lead";
+    p.textContent = text;
+    root.appendChild(p);
+  }
+  for (const day of page.days) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "listItem";
+    btn.dataset.periodDay = day.iso;
+    const title = document.createElement("div");
+    title.className = "listItemTitle";
+    title.textContent = `${formatWeekday(day.iso)} · ${day.flow || "no flow"}`;
+    const bits = [];
+    if (day.product) bits.push(day.product);
+    if (day.pain != null) bits.push(`pain ${day.pain}`);
+    if (day.clots) bits.push("clots");
+    if (day.soaked) bits.push("soaked through");
+    const sub = document.createElement("div");
+    sub.className = "listItemSub";
+    sub.textContent = bits.join(" · ");
+    btn.appendChild(title);
+    btn.appendChild(sub);
+    root.appendChild(btn);
+  }
+  const jump = document.createElement("button");
+  jump.type = "button";
+  jump.className = "btn";
+  jump.dataset.periodJump = page.start;
+  jump.textContent = "Show this month";
+  const clear = document.createElement("button");
+  clear.type = "button";
+  clear.className = "btn ghost";
+  clear.dataset.periodClear = page.start;
+  clear.textContent = clearArmed === page.start ? "Tap again to clear this period's bleeding" : "This was not a period";
+  const row = document.createElement("div");
+  row.className = "quick";
+  row.appendChild(jump);
+  row.appendChild(clear);
+  root.appendChild(row);
+  el.periodBody.replaceChildren(root);
+}
+
+function labeledSelect(labelText, key, options, value, disabled) {
+  const wrap = document.createElement("label");
+  wrap.className = "formRow";
+  const name = document.createElement("span");
+  name.className = "label";
+  name.textContent = labelText;
+  const select = document.createElement("select");
+  select.className = "input";
+  select.dataset.dayField = key;
+  select.disabled = disabled;
+  for (const [optionValue, optionLabel] of options) {
+    const option = document.createElement("option");
+    option.value = optionValue;
+    option.textContent = optionLabel;
+    if (optionValue === value) option.selected = true;
+    select.appendChild(option);
+  }
+  wrap.appendChild(name);
+  wrap.appendChild(select);
+  return wrap;
+}
+
+function checkField(key, labelText, checked, disabled) {
+  const label = document.createElement("label");
+  label.className = "checkInline";
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.dataset.dayCheck = key;
+  input.checked = checked;
+  input.disabled = disabled;
+  label.appendChild(input);
+  label.appendChild(document.createTextNode(labelText));
+  return label;
+}
+
+async function saveSheet(patch) {
+  if (!sheetISO || !vault) return;
+  const today = todayISO(vault.profile.tz || CONFIG.defaults.tz);
+  if (sheetISO > today) return;
+  const prev = updateDay(vault, sheetISO, patch);
+  pushUndo({ iso: sheetISO, prev });
+  await persistVault();
+  renderAll();
+}
+
+function onDayClick(event) {
+  const flowBtn = event.target.closest("[data-day-flow]");
+  if (flowBtn) {
+    saveSheet({ flow: flowBtn.dataset.dayFlow });
+    return;
+  }
+  const symptomBtn = event.target.closest("[data-day-symptom]");
+  if (symptomBtn) {
+    const id = symptomBtn.dataset.daySymptom;
+    const day = vault.daily?.[sheetISO] || {};
+    const cur = new Set(day.symptoms || []);
+    const levels = { ...(day.symptomLevel || {}) };
+    if (!cur.has(id)) {
+      cur.add(id);
+      levels[id] = "mild";
+    } else if (levels[id] !== "strong") levels[id] = "strong";
+    else {
+      cur.delete(id);
+      delete levels[id];
+    }
+    saveSheet({ symptoms: [...cur], symptomLevel: levels });
+    return;
+  }
+  const contextBtn = event.target.closest("[data-day-context]");
+  if (contextBtn) {
+    const id = contextBtn.dataset.dayContext;
+    const have = new Set(vault.daily?.[sheetISO]?.context || []);
+    if (have.has(id)) have.delete(id);
+    else have.add(id);
+    saveSheet({ context: [...have] });
+  }
+}
+
+function onDayChange(event) {
+  const target = event.target;
+  if (target.dataset.dayField === "dayPain") {
+    saveSheet({ pain: target.value === "" ? null : Number(target.value) });
+  } else if (target.dataset.dayField === "dayProduct") saveSheet({ product: target.value });
+  else if (target.dataset.dayField === "dayLh") saveSheet({ lh: target.value });
+  else if (target.dataset.dayField === "dayMucus") saveSheet({ mucus: target.value });
+  else if (target.dataset.dayCheck === "dayClots") saveSheet({ clots: target.checked });
+  else if (target.dataset.dayCheck === "daySoaked") saveSheet({ soaked: target.checked });
+  else if (target.dataset.dayCheck === "dayPill") saveSheet({ pillTaken: target.checked });
+  else if (target.dataset.dayNotes) saveSheet({ notes: target.value });
+  else if (target.dataset.dayBbt) {
+    const raw = target.value.trim();
+    const bbt = raw === "" ? null : Number(raw);
+    saveSheet({ bbt: Number.isFinite(bbt) ? bbt : null });
+  }
+}
+
+function onPeriodClick(event) {
+  const dayBtn = event.target.closest("[data-period-day]");
+  if (dayBtn) {
+    openDay(dayBtn.dataset.periodDay);
+    return;
+  }
+  const jump = event.target.closest("[data-period-jump]");
+  if (jump) {
+    monthAnchor = `${jump.dataset.periodJump.slice(0, 7)}-01`;
+    closePeriod();
+    renderAll();
+    el.calendar.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+  const clear = event.target.closest("[data-period-clear]");
+  if (!clear) return;
+  const start = clear.dataset.periodClear;
+  if (clearArmed !== start) {
+    clearArmed = start;
+    renderPeriod();
+    return;
+  }
+  clearPeriod(start);
+}
+
+async function clearPeriod(start) {
+  const today = todayISO(vault.profile.tz || CONFIG.defaults.tz);
+  const page = periodPages(vault, today).find((item) => item.start === start);
+  clearArmed = "";
+  if (!page) return;
+  const multi = [];
+  for (const day of page.days) {
+    if (!START_FLOW.has(day.flow)) continue;
+    multi.push({ iso: day.iso, prev: snapshotDay(vault, day.iso) });
+    updateDay(vault, day.iso, { flow: "none" });
+  }
+  if (multi.length) pushUndo({ multi });
+  await persistVault();
+  closePeriod();
+  renderAll();
+}
+
+async function savePastStarts() {
+  const today = todayISO(vault.profile.tz || CONFIG.defaults.tz);
+  const dates = parseStartDates(el.pastStarts.value).filter((iso) => iso <= today);
+  if (!dates.length) {
+    el.customNote.textContent = "Add dates like 2025-11-02.";
+    return;
+  }
+  const multi = [];
+  for (const iso of dates) {
+    multi.push({ iso, prev: snapshotDay(vault, iso) });
+    addPeriodStart(vault, iso);
+  }
+  pushUndo({ multi });
+  el.pastStarts.value = "";
+  await persistVault();
+  el.customNote.textContent = `Added ${dates.length} start${dates.length === 1 ? "" : "s"}.`;
+  renderAll();
+}
+
+async function changePasscode() {
+  if (!hasPasscode() || !sessionPasscode) {
+    el.customNote.textContent = "Unlock with the current passcode first.";
+    return;
+  }
+  const code = prompt("Choose a new passcode (4–8 digits).");
+  if (code == null) return;
+  if (!validPasscode(code)) {
+    el.customNote.textContent = "Use 4–8 digits.";
+    return;
+  }
+  sessionPasscode = code;
+  await setPasscode(code, vault);
+  el.customNote.textContent = "Passcode changed.";
+}
+
+async function removePasscode() {
+  if (!hasPasscode()) {
+    el.customNote.textContent = "No passcode is set.";
+    return;
+  }
+  if (!removeArmed) {
+    removeArmed = true;
+    el.customNote.textContent = "Tap remove passcode again to keep the vault unlocked on this device.";
+    return;
+  }
+  removeArmed = false;
+  clearPasscode();
+  sessionPasscode = "";
+  await persistVault();
+  el.customNote.textContent = "Passcode removed. The vault on this device is unlocked.";
+}
+
+function addCustomSymptom() {
+  const label = el.customSymptom.value.trim().slice(0, 24);
+  if (!label) return;
+  const list = Array.isArray(vault.profile.customSymptoms) ? vault.profile.customSymptoms : [];
+  if (list.length >= 12) {
+    el.customNote.textContent = "Twelve added symptoms is the limit.";
+    return;
+  }
+  list.push({ id: `c${Date.now().toString(36)}`, label });
+  vault.profile.customSymptoms = list;
+  el.customSymptom.value = "";
+  persistVault().then(() => renderAll());
+}
+
+function onHideSymptom(event) {
+  const id = event.target?.dataset?.hideSymptom;
+  if (!id) return;
+  const hidden = new Set(vault.profile.hiddenSymptoms || []);
+  if (event.target.checked) hidden.delete(id);
+  else hidden.add(id);
+  vault.profile.hiddenSymptoms = [...hidden];
+  persistVault().then(() => renderAll());
+}
+
+async function copyText(text, note) {
+  try {
+    await navigator.clipboard.writeText(text);
+    note.textContent = "Copied.";
+  } catch {
+    if (el.summaryText) el.summaryText.textContent = text;
+    note.textContent = "Select the summary and copy it from there.";
   }
 }
 
@@ -957,19 +1580,21 @@ function renderFlow(current) {
   }
 }
 
-function renderChips(selectedSymptoms) {
+function renderChips(day) {
+  const selectedSymptoms = day?.symptoms || [];
+  const levels = day?.symptomLevel || {};
   const on = new Set(selectedSymptoms || []);
   const counts = {};
   for (const row of Object.values(vault.daily || {})) {
     for (const id of row?.symptoms || []) counts[id] = (counts[id] || 0) + 1;
   }
-  const chips = [...SYMPTOM_CHIPS].sort((a, b) => (counts[b.id] || 0) - (counts[a.id] || 0));
-  el.symptomChips.innerHTML = "";
+  const chips = visibleSymptoms(vault).sort((a, b) => (counts[b.id] || 0) - (counts[a.id] || 0));
+  el.symptomChips.replaceChildren();
   for (const chip of chips) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "chip" + (on.has(chip.id) ? " on" : "");
-    btn.textContent = chip.label;
+    btn.textContent = symptomLevelLabel(vault, chip.id, on.has(chip.id) ? levels[chip.id] : "");
     btn.disabled = loggingISO().future;
     btn.addEventListener("click", () => toggleSymptom(chip.id));
     el.symptomChips.appendChild(btn);
@@ -982,6 +1607,7 @@ function fillMore(day) {
   el.bbtInput.value = typeof day.bbt === "number" ? String(day.bbt) : "";
   el.mucusInput.value = day.mucus || "";
   el.notesInput.value = day.notes || "";
+  if (el.pillInput) el.pillInput.checked = !!day.pillTaken;
   const future = loggingISO().future;
   el.lhInput.disabled = future;
   el.bbtInput.disabled = future;
@@ -1008,9 +1634,7 @@ function renderGates(model) {
 }
 
 function maybeShowFallbackBanner(model, today, tz) {
-  const tomorrow = addDaysISO(today, 1);
-  const soon = model.median === today || model.median === tomorrow;
-  const relevant = soon && !model.paused && !model.inBleed;
+  const relevant = reminderRelevant(model, today, vault.profile.remindWhen || "both");
   const t = vault.profile.notifyTime || CONFIG.defaults.notifyTime;
   if (shouldShowBanner(tz, t, { relevant })) {
     el.bannerText.textContent = model.median === today

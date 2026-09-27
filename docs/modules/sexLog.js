@@ -14,6 +14,7 @@ export function setSexEntry(vault, iso, entry) {
   ensureSexDefaults(vault);
   vault.sexLog[iso] = {
     protection: entry.protection || "unknown",
+    pain: entry.pain || "",
     notes: entry.notes || "",
     updatedAt: Date.now()
   };

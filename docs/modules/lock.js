@@ -69,3 +69,9 @@ export async function unlock(passcode) {
 export async function lockNow() {
   setLocked(true);
 }
+
+export function clearPasscode() {
+  const meta = loadMeta();
+  meta.lock = { enabled: false, locked: false, salt: "" };
+  saveMeta(meta);
+}

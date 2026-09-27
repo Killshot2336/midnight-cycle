@@ -417,11 +417,26 @@ textarea.input{resize:vertical}
   border:1px solid var(--line);
   padding:10px 12px;
 }
+button.listItem{
+  width:100%;
+  text-align:left;
+  background:transparent;
+  color:inherit;
+  font:inherit;
+  cursor:pointer;
+}
 .listItemTitle{font-weight:600}
 .listItemSub{font-size:12px;color:var(--muted);margin-top:4px}
 
+body.discreet .isPrivate{display:none !important}
 body.panicMode .isPrivate,
 body.panicMode .isCute{display:none !important}
+.symptomEditor{margin-top:8px}
+.symptomEditor summary{cursor:pointer;color:var(--muted);font-size:13px}
+.checkStack{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.checkInline{display:flex;gap:8px;align-items:center;font-size:14px}
+.contextRow{display:flex;flex-wrap:wrap;gap:8px}
+.dayBlock{display:flex;flex-direction:column;gap:8px}
 body.panicMode{filter:grayscale(1);background:var(--bg) !important}
 body.panicMode::before,
 body.panicMode .shell::after{display:none !important}

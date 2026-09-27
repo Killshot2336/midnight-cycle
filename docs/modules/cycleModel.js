@@ -129,6 +129,12 @@ function fitSeries(values, prior, wide) {
   return { mean, predSd, sumW };
 }
 
+function tempC(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  if (value > 50) return (value - 32) * 5 / 9;
+  return value;
+}
+
 function detectOvulation(daily, cycleStart, nextStart) {
   const days = [];
   for (let iso = cycleStart; iso < nextStart; iso = addDaysISO(iso, 1)) {
@@ -141,7 +147,7 @@ function detectOvulation(daily, cycleStart, nextStart) {
     }
   }
 
-  const temps = days.map((d) => (typeof d.bbt === "number" && Number.isFinite(d.bbt) ? d.bbt : null));
+  const temps = days.map((d) => tempC(d.bbt));
   for (let i = 3; i < days.length - 1; i++) {
     const prev = temps.slice(i - 3, i);
     if (prev.some((t) => t == null)) continue;
@@ -330,7 +336,7 @@ export function buildForecastModel(vault, today) {
   const last = episodes.length ? episodes[episodes.length - 1] : null;
   const track = walkForward(episodes, daily, situation);
   const showFertile = goal === "fertility" && situation !== "hormonal" && situation !== "pregnancy";
-  const paused = situation === "pregnancy";
+  const paused = situation === "pregnancy" || vault?.profile?.forecastHold === true;
 
   const model = {
     today,
@@ -470,14 +476,20 @@ function normalCdf(z) {
   return z >= 0 ? 1 - p : p;
 }
 
+function symptomIdsFor(vault) {
+  const custom = Array.isArray(vault?.profile?.customSymptoms) ? vault.profile.customSymptoms : [];
+  const extra = custom.map((s) => s?.id).filter((id) => id && !SYMPTOM_IDS.includes(id));
+  return [...SYMPTOM_IDS, ...extra];
+}
+
 export function symptomTiming(vault) {
   const daily = vault?.daily || {};
   const episodes = deriveEpisodes(daily, null);
   const recent = episodes.slice(-7);
   const profiles = {};
 
-  for (const id of SYMPTOM_IDS) {
-    const back = SYMPTOM_BACKOFF[id] || { at: -1, n: 0 };
+  for (const id of symptomIdsFor(vault)) {
+    const back = SYMPTOM_BACKOFF[id] || { at: -1, n: 0.2 };
     const at = symptomAt(back);
     const bins = {};
     const raw = {};
@@ -549,7 +561,7 @@ export function symptomTiming(vault) {
 export function topSymptom(vault) {
   const profiles = symptomTiming(vault);
   let best = null;
-  for (const id of SYMPTOM_IDS) {
+  for (const id of Object.keys(profiles)) {
     const p = profiles[id];
     if (!p?.ready) continue;
     if (!best || p.support > best.support) best = { id, ...p };
@@ -584,6 +596,7 @@ export function trackSentence(track) {
 }
 
 export function daySentence(model) {
+  if (model?.paused && model.situation !== "pregnancy") return "Forecasts stay paused until you set the situation to cycling.";
   if (model?.paused) return "Forecasts stay paused while pregnancy mode is on.";
   if (!model?.lastStart || !model.today) return "Log a period start to see your window.";
   const cd = daysBetweenISO(model.lastStart, model.today) + 1;
@@ -600,7 +613,9 @@ export function daySentence(model) {
 }
 
 export function headlineFor(model) {
-  if (!model || model.paused) return "Pregnancy mode is on. Period forecasts are paused.";
+  if (!model) return "Log a period start to see your window.";
+  if (model.paused && model.situation !== "pregnancy") return "Forecasts are paused until you choose cycling.";
+  if (model.paused) return "Pregnancy mode is on. Period forecasts are paused.";
   if (!model.lastStart || !model.median) return "Log a period start to see your window.";
   const when = `${formatWeekday(model.median)}. Likely ${formatMonthDay(model.low)}–${formatMonthDay(model.high)}.`;
   if (model.inBleed) {
