@@ -300,6 +300,7 @@ function wireUI() {
   el.undoBtn.addEventListener("click", async () => {
     const undo = undoStack.pop();
     if (!undo) return;
+    const isos = undo.multi ? undo.multi.map((step) => step.iso) : [undo.iso];
     if (undo.multi) {
       for (const step of undo.multi) restoreDay(vault, step.iso, step.prev);
     } else {
@@ -307,6 +308,11 @@ function wireUI() {
     }
     await persistVault();
     renderAll();
+    if (!panic) {
+      for (const iso of isos) {
+        el.calendar.querySelector(`[data-iso="${iso}"]`)?.classList.add("rewind");
+      }
+    }
   });
 
   el.backTodayBtn.addEventListener("click", () => {
@@ -557,19 +563,9 @@ async function logFlow(flow) {
   if (future) return;
   const prev = updateDay(vault, iso, { flow });
   pushUndo({ iso, prev });
-  const shine = (flow === "light" || flow === "medium" || flow === "heavy");
   await persistVault();
   renderAll();
-  const cell = el.calendar.querySelector(`[data-iso="${iso}"]`);
-  if (cell && shine) {
-    cell.classList.remove("pulseRing", "pulse-light", "pulse-medium", "pulse-heavy");
-    void cell.offsetWidth;
-    cell.classList.add("pulseRing", `pulse-${flow}`);
-  }
-  if (shine && currentTheme().shimmer) {
-    document.body.classList.add("shimmer");
-    setTimeout(() => document.body.classList.remove("shimmer"), 700);
-  }
+  playLogMotion(flow, iso);
 }
 
 async function toggleSymptom(id) {
@@ -675,6 +671,7 @@ function renderAll() {
   paintDecor(currentTheme());
 
   if (panic) {
+    setForecastMood(null);
     el.notifyBanner.classList.add("hidden");
     el.sexLogBtn.classList.add("hidden");
     el.calLabel.textContent = monthLabel(monthAnchor);
@@ -741,6 +738,7 @@ function renderAll() {
 
   el.summaryText.textContent = clinicianSummary(vault, model);
   renderGates(model);
+  setForecastMood(model);
 
   maybeShowFallbackBanner(model, today, tz);
   cueMotion();
@@ -787,6 +785,7 @@ function applyLook(style) {
   setInputsFromTheme({ ...p, style, base: style, phrase }, el);
   paintPickers();
   applyFromInputs();
+  playLookSweep();
 }
 
 function paintPickers() {
@@ -815,6 +814,58 @@ function fillCharmPicker(container, choice) {
   }
 }
 
+function setForecastMood(model) {
+  document.body.classList.toggle("forecast-bleed", !!model?.inBleed);
+  document.body.classList.toggle("forecast-late", !!(model?.late && !model?.inBleed));
+  document.body.classList.toggle("forecast-paused", !!model?.paused);
+}
+
+function playLookSweep() {
+  const sweep = document.getElementById("lookSweep");
+  if (!sweep || panic) return;
+  sweep.classList.remove("on");
+  void sweep.offsetWidth;
+  sweep.classList.add("on");
+}
+
+function playLogMotion(flow, iso) {
+  if (panic) return;
+  const btn = el.flowRow.querySelector(`[data-flow="${flow}"]`);
+  if (flow === "spotting") {
+    btn?.classList.add("spark");
+    return;
+  }
+  if (flow === "none") {
+    btn?.classList.add("exhale");
+    document.body.classList.add("exhale");
+    setTimeout(() => document.body.classList.remove("exhale"), 720);
+    return;
+  }
+  if (flow !== "light" && flow !== "medium" && flow !== "heavy") return;
+  btn?.classList.add("sheen", `sheen-${flow}`);
+  const cell = el.calendar.querySelector(`[data-iso="${iso}"]`);
+  if (cell) {
+    cell.classList.remove("pulseRing", "pulse-light", "pulse-medium", "pulse-heavy");
+    void cell.offsetWidth;
+    cell.classList.add("pulseRing", `pulse-${flow}`);
+  }
+  const quiet = document.body.classList.contains("forecast-paused") || document.body.classList.contains("forecast-late");
+  if (!quiet) charmReact(flow);
+  if (currentTheme().shimmer) {
+    document.body.classList.add("shimmer");
+    setTimeout(() => document.body.classList.remove("shimmer"), 700);
+  }
+}
+
+function charmReact(flow) {
+  const weight = flow === "heavy" ? "react-heavy" : (flow === "light" ? "react-light" : "react-medium");
+  el.charmLayer?.querySelectorAll(".charm").forEach((span) => {
+    span.classList.remove("react", "react-light", "react-medium", "react-heavy", "drop");
+    void span.offsetWidth;
+    span.classList.add("react", weight);
+  });
+}
+
 function cueMotion() {
   if (!el.calendar || panic) return;
   if (monthMotion) {
@@ -831,7 +882,7 @@ function cueMotion() {
     setTimeout(() => {
       document.body.classList.remove("arrive");
       el.calendar?.classList.remove("drawRing");
-    }, 1300);
+    }, 1900);
   }
 }
 
@@ -850,6 +901,7 @@ function paintDecor(theme) {
   }
   if (!el.charmLayer) return;
   const key = `${t.charm}|${t.charm2}|${t.charmCorner}`;
+  const dropIn = decorKey !== "" && key !== decorKey;
   el.charmLayer.classList.toggle("corner-tl", t.charmCorner === "tl");
   el.charmLayer.classList.toggle("corner-tr", t.charmCorner === "tr");
   el.charmLayer.classList.toggle("corner-bl", t.charmCorner === "bl");
@@ -865,9 +917,12 @@ function paintDecor(theme) {
     const svg = charmSvg(id);
     if (!svg) continue;
     const span = document.createElement("span");
-    span.className = "charm";
+    span.className = "charm" + (dropIn ? " drop" : "");
     span.dataset.charm = id;
     span.innerHTML = svg;
+    span.addEventListener("animationend", () => {
+      span.classList.remove("drop", "react", "react-light", "react-medium", "react-heavy");
+    });
     el.charmLayer.appendChild(span);
   }
   el.charmLayer.classList.toggle("hidden", el.charmLayer.childElementCount === 0);
