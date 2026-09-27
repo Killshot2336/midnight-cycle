@@ -1,83 +1,88 @@
-import { phaseProbabilities } from "./probability.js";
+import { dayOutlook, ANY_FLOW } from "./cycleModel.js";
 
-export function renderCalendar(el, vault, tz, anchorISO) {
+export function renderCalendar(el, opts) {
+  const { vault, model, anchorISO, selectedISO, today, onSelect } = opts;
   el.innerHTML = "";
 
-  const anchor = new Date(anchorISO + "T00:00:00");
-  const year = anchor.getFullYear();
-  const month = anchor.getMonth(); // 0-11
+  const [year, monthNum] = anchorISO.split("-").map(Number);
+  const month = monthNum - 1;
+  const first = new Date(Date.UTC(year, month, 1));
+  const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  const firstDow = (first.getUTCDay() + 6) % 7;
 
-  const first = new Date(year, month, 1);
-  const last = new Date(year, month + 1, 0);
-  const daysInMonth = last.getDate();
-
-  // Monday-first headers
-  const headers = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-  for (const h of headers) {
+  for (const h of ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]) {
     const head = document.createElement("div");
     head.className = "calHead";
     head.textContent = h;
     el.appendChild(head);
   }
 
-  // JS: Sunday=0..Saturday=6 → convert to Monday-first index
-  const firstDow = (first.getDay() + 6) % 7; // Mon=0..Sun=6
-
-  // leading blanks
-  for (let i=0;i<firstDow;i++){
+  for (let i = 0; i < firstDow; i++) {
     const blank = document.createElement("div");
     blank.className = "calCell dim";
-    blank.innerHTML = `<div class="calTop"><div class="calDay"> </div><div class="calTag"></div></div>`;
     el.appendChild(blank);
   }
 
-  // actual days
-  for (let d=1; d<=daysInMonth; d++){
+  for (let d = 1; d <= daysInMonth; d++) {
     const iso = isoOf(year, month, d);
-    const p = phaseProbabilities(vault, iso);
-    const phase = pick(p);
-
-    const cell = document.createElement("div");
+    const flow = vault.daily?.[iso]?.flow;
+    const outlook = dayOutlook(model, iso, 0);
+    const cell = document.createElement("button");
+    cell.type = "button";
     cell.className = "calCell";
     cell.dataset.iso = iso;
+    if (iso === selectedISO) cell.classList.add("calSelected");
+    if (iso === today) cell.classList.add("calToday");
+
+    const tag = document.createElement("div");
+    tag.className = "calTag";
+    if (flow === "light" || flow === "medium" || flow === "heavy") {
+      tag.textContent = "Logged";
+      tag.classList.add("tagLogged");
+      cell.classList.add("calLogged");
+    } else if (flow === "spotting") {
+      tag.textContent = "Spotting";
+      tag.classList.add("tagSpot");
+    } else if (ANY_FLOW.has(flow)) {
+      tag.textContent = "Logged";
+      tag.classList.add("tagLogged");
+    } else if (outlook.bleed >= 0.34) {
+      tag.textContent = "Expected";
+      tag.classList.add("tagExpected");
+    } else if (outlook.fertile >= 0.34) {
+      tag.textContent = "Fertile";
+      tag.classList.add("tagFertile");
+    }
 
     const top = document.createElement("div");
     top.className = "calTop";
-
     const day = document.createElement("div");
     day.className = "calDay";
     day.textContent = String(d);
-
-    const tag = document.createElement("div");
-    tag.className = "calTag " + cls(phase);
-    tag.textContent = phase;
-
     top.appendChild(day);
     top.appendChild(tag);
-
-    const sub = document.createElement("div");
-    sub.className = "tiny muted";
-    sub.textContent = `Conf ${Math.round(p.confidence*100)}%`;
-
     cell.appendChild(top);
-    cell.appendChild(sub);
+    cell.addEventListener("click", () => onSelect(iso));
     el.appendChild(cell);
-  }
-
-  function pick(p){
-    const arr = [["Period",p.period],["PMS",p.pms],["Ovulation",p.ovu],["Neutral",p.neutral]].sort((a,b)=>b[1]-a[1]);
-    return arr[0][0];
-  }
-  function cls(phase){
-    if (phase==="Period") return "tagPeriod";
-    if (phase==="PMS") return "tagPms";
-    if (phase==="Ovulation") return "tagOvu";
-    return "";
   }
 }
 
 function isoOf(y, m0, d) {
-  const m = String(m0+1).padStart(2,"0");
-  const day = String(d).padStart(2,"0");
+  const m = String(m0 + 1).padStart(2, "0");
+  const day = String(d).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+export function monthLabel(anchorISO) {
+  const [y, m] = anchorISO.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, 1));
+  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" }).format(dt);
+}
+
+export function shiftMonth(anchorISO, delta) {
+  const [y, m] = anchorISO.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1 + delta, 1));
+  const yy = dt.getUTCFullYear();
+  const mm = String(dt.getUTCMonth() + 1).padStart(2, "0");
+  return `${yy}-${mm}-01`;
 }

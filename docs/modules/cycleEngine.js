@@ -1,84 +1,99 @@
-import { clamp, daysBetweenISO, addDaysISO } from "./guard.js";
-import { computeDriftStats } from "./driftModel.js";
-
-// Vault schema we use:
-// vault = {
-//   version: 2,
-//   profile: { tz, notifyTime, theme },
-//   periods: [{ start:"YYYY-MM-DD", lengthDays: number|null }],
-//   daily: { "YYYY-MM-DD": { mood, pain, flow, notes } },
-//   sexLog: { ... }
-// }
+import { addDaysISO } from "./guard.js";
+import { ANY_FLOW, deriveEpisodes } from "./cycleModel.js";
 
 export function ensureVault(vault, tz) {
-  const v = vault || {};
-  v.version = 2;
-  v.profile = v.profile || { tz, notifyTime:"18:30", theme:null };
-  v.periods = v.periods || []; // {start, lengthDays?}
-  v.daily = v.daily || {};
+  const v = vault && typeof vault === "object" ? vault : {};
+  const incoming = Number(v.version) || 0;
+  v.profile = v.profile || {};
+  v.profile.tz = v.profile.tz || tz || "America/Chicago";
+  v.profile.notifyTime = v.profile.notifyTime || "18:30";
+  if (!v.profile.situation) v.profile.situation = "cycling";
+  if (!v.profile.goal) v.profile.goal = "bleed";
+  v.daily = v.daily && typeof v.daily === "object" ? v.daily : {};
+  v.periods = Array.isArray(v.periods) ? v.periods : [];
+
+  if (typeof v.profile.onboarded !== "boolean") {
+    const hasFlow = Object.values(v.daily).some((row) => ANY_FLOW.has(row?.flow));
+    v.profile.onboarded = incoming < 3 && (v.periods.length > 0 || hasFlow);
+  }
+
+  if (!v.profile.periodsMigrated && incoming < 3) {
+    for (const p of v.periods) {
+      if (!p?.start) continue;
+      const row = { ...(v.daily[p.start] || {}) };
+      if (!row.flow) row.flow = "medium";
+      v.daily[p.start] = row;
+    }
+    v.profile.periodsMigrated = true;
+  } else if (!v.profile.periodsMigrated) {
+    v.profile.periodsMigrated = true;
+  }
+
+  v.version = 3;
   return v;
 }
 
-export function addPeriodStart(vault, iso) {
+function cloneDay(row) {
+  if (!row) return null;
+  return {
+    ...row,
+    symptoms: Array.isArray(row.symptoms) ? [...row.symptoms] : row.symptoms
+  };
+}
+
+function refreshPeriods(vault) {
+  const episodes = deriveEpisodes(vault.daily, null);
+  vault.periods = episodes.map((e) => ({ start: e.start, lengthDays: e.bleedDays }));
+}
+
+export function updateDay(vault, iso, patch) {
   ensureVault(vault);
-  // prevent duplicates
-  if (!vault.periods.some(p => p.start === iso)) {
-    vault.periods.push({ start: iso, lengthDays: null });
-    vault.periods.sort((a,b)=>a.start.localeCompare(b.start));
+  if (!iso) return null;
+  const prev = cloneDay(vault.daily[iso]);
+  const next = { ...(vault.daily[iso] || {}), ...(patch || {}), updatedAt: Date.now() };
+  if (patch && Object.prototype.hasOwnProperty.call(patch, "symptoms")) {
+    next.symptoms = Array.isArray(patch.symptoms) ? [...patch.symptoms] : [];
   }
+  vault.daily[iso] = next;
+  refreshPeriods(vault);
+  return prev;
+}
+
+export function restoreDay(vault, iso, prev) {
+  ensureVault(vault);
+  if (!prev) delete vault.daily[iso];
+  else vault.daily[iso] = prev;
+  refreshPeriods(vault);
   return vault;
 }
 
 export function setDaily(vault, iso, entry) {
-  ensureVault(vault);
-  vault.daily[iso] = { ...(vault.daily[iso]||{}), ...(entry||{}), updatedAt: Date.now() };
+  updateDay(vault, iso, entry || {});
   return vault;
 }
 
-export function getRecentStarts(vault, max=10) {
-  ensureVault(vault);
-  const starts = vault.periods.map(p=>p.start).sort();
-  return starts.slice(-max);
+export function addPeriodStart(vault, iso) {
+  if (!iso) return vault;
+  updateDay(vault, iso, { flow: "medium" });
+  return vault;
 }
 
-export function inferCycleParams(vault) {
-  const starts = getRecentStarts(vault, 12);
-  const drift = computeDriftStats(starts);
-
-  // If we have a decent mean, use it; else fallback to 28.
-  const mean = drift.mean > 0 ? drift.mean : 28;
-
-  // widen uncertainty when chaotic
-  const sd = drift.sd > 0 ? drift.sd : (drift.chaotic ? 7 : 4);
-
-  return { meanCycleDays: mean, sdCycleDays: sd, chaotic: drift.chaotic, chaosScore: drift.score };
-}
-
-export function dayIndexFromLastStart(vault, iso) {
-  const starts = getRecentStarts(vault, 1);
-  if (!starts.length) return null;
-  return daysBetweenISO(starts[0], iso);
-}
-
-// simple phase windows relative to predicted ovulation/period,
-// with uncertainty handled in probability module.
-export function nominalWindows(mean) {
-  const cycle = Math.max(18, Math.min(45, Math.round(mean)));
-  const ovu = Math.max(9, Math.min(cycle-10, Math.round(cycle * 0.5)));
-  return {
-    cycle,
-    ovuDay: ovu,
-    pmsStart: Math.max(ovu+3, cycle-7),
-    periodLen: 5
-  };
-}
-
-export function nextPeriodDate(vault, fromISO) {
-  const { meanCycleDays } = inferCycleParams(vault);
-  const starts = getRecentStarts(vault, 1);
-  if (!starts.length) return null;
-  const last = starts[0];
-  const next = addDaysISO(last, Math.round(meanCycleDays));
-  if (fromISO && next < fromISO) return fromISO; // defensive
-  return next;
+export function markPeriodRange(vault, start, end, today) {
+  if (!start || !end) return vault;
+  let a = start;
+  let b = end;
+  if (b < a) {
+    const swap = a;
+    a = b;
+    b = swap;
+  }
+  if (today && b > today) b = today;
+  let iso = a;
+  let n = 0;
+  while (iso <= b && n < 14) {
+    updateDay(vault, iso, { flow: "medium" });
+    iso = addDaysISO(iso, 1);
+    n += 1;
+  }
+  return vault;
 }

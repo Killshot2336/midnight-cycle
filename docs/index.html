@@ -16,7 +16,7 @@
         <div class="logoDot"></div>
         <div>
           <div id="appTitle" class="title">Midnight</div>
-          <div id="appSub" class="sub">Cycle intelligence, private by design.</div>
+          <div id="appSub" class="sub">Your cycle, private on this device.</div>
         </div>
       </div>
 
@@ -29,178 +29,265 @@
     <main class="main">
       <section class="card hero">
         <div class="heroLeft">
-          <div class="kpi">
-            <div class="kpiLabel">Today</div>
-            <div id="todayBadge" class="kpiValue badge">Loading…</div>
-          </div>
+          <div id="logDayLabel" class="kpiLabel">Today</div>
+          <h1 id="headline" class="headline">Loading…</h1>
+          <p id="daySentence" class="lead"></p>
+          <p id="trackLine" class="lead"></p>
+          <p id="lateNote" class="lead lateNote"></p>
+          <p id="wideNote" class="lead"></p>
+          <p id="insightLine" class="insightLine"></p>
+          <p id="fertileLine" class="lead"></p>
 
-          <div class="kpiRow">
-            <div class="kpi">
-              <div class="kpiLabel">Cycle phase</div>
-              <div id="phaseText" class="kpiValue">—</div>
-            </div>
-            <div class="kpi">
-              <div class="kpiLabel">Confidence</div>
-              <div id="confidenceText" class="kpiValue">—</div>
-            </div>
-          </div>
-
-          <div class="barWrap">
-            <div class="barLabelRow">
-              <span>Period</span><span id="pPeriod">0%</span>
-            </div>
-            <div class="bar"><div id="barPeriod" class="barFill"></div></div>
-
-            <div class="barLabelRow">
-              <span>PMS</span><span id="pPms">0%</span>
-            </div>
-            <div class="bar"><div id="barPms" class="barFill"></div></div>
-
-            <div class="barLabelRow">
-              <span>Ovulation</span><span id="pOvu">0%</span>
-            </div>
-            <div class="bar"><div id="barOvu" class="barFill"></div></div>
-          </div>
-
+          <div id="flowRow" class="flowRow"></div>
           <div class="quick">
-            <button id="startTodayBtn" class="btn primary">Start Period Today</button>
-            <button id="logTodayBtn" class="btn">Log Today</button>
-            <button id="sexLogBtn" class="btn">Sex Log</button>
+            <button id="undoBtn" class="btn ghost sm hidden" type="button">Undo</button>
+            <button id="backTodayBtn" class="btn ghost sm hidden" type="button">Back to today</button>
+            <button id="sexLogBtn" class="btn hidden" type="button">Sex log</button>
+          </div>
+
+          <div id="symptomChips" class="chips"></div>
+          <button id="moreToggle" class="btn ghost sm" type="button">More</button>
+          <div id="moreBox" class="moreBox hidden">
+            <div class="formRow">
+              <label class="label" for="lhInput">LH test</label>
+              <select id="lhInput" class="input">
+                <option value="">Not logged</option>
+                <option value="neg">Negative</option>
+                <option value="pos">Positive</option>
+              </select>
+            </div>
+            <div class="formRow">
+              <label class="label" for="bbtInput">Waking temperature</label>
+              <input id="bbtInput" class="input" type="number" step="0.01" inputmode="decimal" placeholder="°C or °F, your usual scale" />
+            </div>
+            <div class="formRow">
+              <label class="label" for="mucusInput">Cervical mucus</label>
+              <select id="mucusInput" class="input">
+                <option value="">Not logged</option>
+                <option value="dry">Dry</option>
+                <option value="sticky">Sticky</option>
+                <option value="creamy">Creamy</option>
+                <option value="eggwhite">Egg-white</option>
+              </select>
+            </div>
+            <div class="formRow">
+              <label class="label" for="notesInput">Notes</label>
+              <textarea id="notesInput" class="input" rows="2" placeholder="Optional"></textarea>
+            </div>
           </div>
 
           <div id="notifyBanner" class="banner hidden">
-            <div class="bannerTitle">6:30pm reminder</div>
-            <div class="bannerText">Notification fallback is active. You’ll see reminders inside the app.</div>
-            <button id="bannerClose" class="btn ghost sm">OK</button>
+            <div>
+              <div class="bannerTitle">Reminder</div>
+              <div id="bannerText" class="bannerText"></div>
+            </div>
+            <button id="bannerClose" class="btn ghost sm" type="button">OK</button>
           </div>
         </div>
 
         <div class="heroRight">
           <div class="panelTitle">Next 14 days</div>
           <div id="timeline" class="timeline"></div>
-          <div class="panelTitle mt">Explain why</div>
-          <div id="whyBox" class="why"></div>
         </div>
       </section>
 
-      <section class="grid2">
-        <section class="card">
-          <div class="cardTitle">Calendar</div>
-          <div id="calendar" class="calendar"></div>
-        </section>
-
-        <section class="card">
-          <div class="cardTitleRow">
-            <div class="cardTitle">Customization</div>
-            <button id="saveThemeBtn" class="btn ghost sm">Save</button>
-          </div>
-
-          <div class="formRow">
-            <label class="label">Style</label>
-            <select id="themeStyle" class="input">
-              <option value="midnight">Midnight</option>
-              <option value="obsidian">Obsidian</option>
-              <option value="noir">Noir</option>
-              <option value="neon">Neon</option>
-            </select>
-          </div>
-
-          <div class="formRow">
-            <label class="label">Accent</label>
-            <input id="accent" class="input" type="color" value="#7c4dff" />
-          </div>
-
-          <div class="formRow">
-            <label class="label">Background</label>
-            <input id="bg" class="input" type="color" value="#0b0f1a" />
-          </div>
-
-          <div class="formRow">
-            <label class="label">Card</label>
-            <input id="card" class="input" type="color" value="#121a2c" />
-          </div>
-
-          <div class="formRow">
-            <label class="label">Text</label>
-            <input id="text" class="input" type="color" value="#e9ecff" />
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="formRow">
-            <label class="label">Daily reminder</label>
-            <input id="notifyTime" class="input" type="time" value="18:30" />
-          </div>
-
-          <div class="formRow">
-            <label class="label">Timezone</label>
-            <select id="tz" class="input">
-              <option value="America/Chicago">America/Chicago</option>
-              <option value="America/Denver">America/Denver</option>
-              <option value="America/Los_Angeles">America/Los_Angeles</option>
-              <option value="America/New_York">America/New_York</option>
-            </select>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="quick">
-            <button id="vaultExportBtn" class="btn">Export Vault</button>
-            <button id="vaultImportBtn" class="btn">Import Vault</button>
-            <button id="setPasscodeBtn" class="btn ghost">Set Passcode</button>
-          </div>
-
-          <input id="vaultFile" type="file" accept="application/json" class="hidden" />
-          <div id="customNote" class="tiny muted mt"></div>
-        </section>
+      <section class="card">
+        <div class="calNav">
+          <button id="calPrev" class="btn ghost sm" type="button">Previous</button>
+          <div id="calLabel" class="cardTitle calLabel">Calendar</div>
+          <button id="calNext" class="btn ghost sm" type="button">Next</button>
+        </div>
+        <div id="calendar" class="calendar"></div>
+        <div class="rangeRow">
+          <div class="label">Mark period days</div>
+          <input id="rangeStart" class="input" type="date" />
+          <input id="rangeEnd" class="input" type="date" />
+          <button id="rangeApply" class="btn" type="button">Mark these days</button>
+        </div>
+        <div id="rangeNote" class="tiny muted"></div>
       </section>
 
       <section class="card">
         <div class="cardTitleRow">
-          <div class="cardTitle">Skill Tree (Consistency Engine)</div>
-          <div id="skillRank" class="badge">—</div>
+          <div class="cardTitle">Summary</div>
+          <button id="copySummary" class="btn ghost sm" type="button">Copy</button>
         </div>
-        <div id="skillTree" class="skillTree"></div>
+        <pre id="summaryText" class="summary"></pre>
+        <div id="copyNote" class="tiny muted"></div>
       </section>
+
+      <section class="card">
+        <div class="cardTitle">What Midnight knows</div>
+        <div id="gates" class="skillTree"></div>
+      </section>
+
+      <details id="settingsCard" class="card settings">
+        <summary class="cardTitle">Settings</summary>
+
+        <div class="formRow">
+          <label class="label" for="situation">Situation</label>
+          <select id="situation" class="input">
+            <option value="cycling">Cycling</option>
+            <option value="hormonal">Hormonal birth control</option>
+            <option value="postpartum">Postpartum</option>
+            <option value="pregnancy">Pregnancy</option>
+            <option value="irregular">Irregular cycles</option>
+          </select>
+        </div>
+
+        <div class="formRow">
+          <label class="label" for="goal">What you want</label>
+          <select id="goal" class="input">
+            <option value="bleed">Know when I'll bleed</option>
+            <option value="symptoms">Understand symptoms</option>
+            <option value="fertility">Fertility awareness</option>
+          </select>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="formRow">
+          <label class="label" for="themeStyle">Style</label>
+          <select id="themeStyle" class="input">
+            <option value="midnight">Midnight</option>
+            <option value="obsidian">Obsidian</option>
+            <option value="noir">Noir</option>
+            <option value="neon">Neon</option>
+          </select>
+        </div>
+
+        <div class="formRow">
+          <label class="label" for="accent">Accent</label>
+          <input id="accent" class="input" type="color" value="#7c4dff" />
+        </div>
+
+        <div class="formRow">
+          <label class="label" for="bg">Background</label>
+          <input id="bg" class="input" type="color" value="#0b0f1a" />
+        </div>
+
+        <div class="formRow">
+          <label class="label" for="card">Card</label>
+          <input id="card" class="input" type="color" value="#121a2c" />
+        </div>
+
+        <div class="formRow">
+          <label class="label" for="text">Text</label>
+          <input id="text" class="input" type="color" value="#e9ecff" />
+        </div>
+
+        <div class="quick">
+          <button id="saveThemeBtn" class="btn ghost sm" type="button">Save appearance</button>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="formRow">
+          <label class="label" for="notifyTime">Daily reminder</label>
+          <input id="notifyTime" class="input" type="time" value="18:30" />
+        </div>
+
+        <div class="formRow">
+          <label class="label" for="tz">Timezone</label>
+          <select id="tz" class="input">
+            <option value="America/Chicago">America/Chicago</option>
+            <option value="America/Denver">America/Denver</option>
+            <option value="America/Los_Angeles">America/Los_Angeles</option>
+            <option value="America/New_York">America/New_York</option>
+          </select>
+        </div>
+
+        <div class="quick">
+          <button id="enablePushBtn" class="btn" type="button">Enable reminders on this device</button>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="quick">
+          <button id="vaultExportBtn" class="btn" type="button">Export vault</button>
+          <button id="vaultImportBtn" class="btn" type="button">Import vault</button>
+          <button id="setPasscodeBtn" class="btn ghost" type="button">Set passcode</button>
+        </div>
+
+        <input id="vaultFile" type="file" accept="application/json" class="hidden" />
+        <div id="customNote" class="tiny muted mt"></div>
+      </details>
     </main>
 
     <footer class="footer">
-      <span class="muted tiny">Local-first. Private by default. Optional cloud sync.</span>
+      <span class="muted tiny">On this device. No account required. Nothing is locked behind a paywall.</span>
       <span id="statusPill" class="pill">Booting…</span>
     </footer>
   </div>
 
-  <!-- Vault/Lock Overlay -->
+  <div id="onboardOverlay" class="overlay hidden" role="dialog" aria-modal="true">
+    <div class="overlayCard">
+      <div class="overlayTitle">Set up your window</div>
+      <div class="overlaySub muted">The first forecast is an early guess. It gets personal after a few confirmed cycles.</div>
+
+      <div class="formRow">
+        <label class="label" for="obLast">Last period started</label>
+        <input id="obLast" class="input" type="date" />
+      </div>
+      <div id="obExtra"></div>
+      <button id="obAdd" class="btn ghost sm" type="button">Add an earlier start</button>
+
+      <div class="formRow">
+        <label class="label" for="obSituation">What fits right now</label>
+        <select id="obSituation" class="input">
+          <option value="cycling">Cycling</option>
+          <option value="hormonal">Hormonal birth control</option>
+          <option value="postpartum">Postpartum</option>
+          <option value="pregnancy">Pregnancy</option>
+          <option value="irregular">Irregular cycles</option>
+        </select>
+      </div>
+
+      <div class="formRow">
+        <label class="label" for="obGoal">What do you want</label>
+        <select id="obGoal" class="input">
+          <option value="bleed">Know when I'll bleed</option>
+          <option value="symptoms">Understand symptoms</option>
+          <option value="fertility">Fertility awareness</option>
+        </select>
+      </div>
+
+      <div class="quick">
+        <button id="obSave" class="btn primary" type="button">See my window</button>
+        <button id="obSkip" class="btn ghost" type="button">Not now</button>
+      </div>
+    </div>
+  </div>
+
   <div id="lockOverlay" class="overlay hidden" role="dialog" aria-modal="true">
     <div class="overlayCard">
       <div class="overlayTitle">Locked</div>
       <div class="overlaySub muted">Enter passcode to unlock.</div>
       <input id="passInput" class="input big" inputmode="numeric" placeholder="••••" maxlength="8" />
       <div class="quick">
-        <button id="unlockBtn" class="btn primary">Unlock</button>
-        <button id="usePanicBtn" class="btn ghost">Panic Mode</button>
+        <button id="unlockBtn" class="btn primary" type="button">Unlock</button>
+        <button id="usePanicBtn" class="btn ghost" type="button">Panic Mode</button>
       </div>
       <div id="lockMsg" class="tiny muted mt"></div>
     </div>
   </div>
 
-  <!-- Sex Log Overlay -->
   <div id="sexOverlay" class="overlay hidden" role="dialog" aria-modal="true">
     <div class="overlayCard wide">
       <div class="overlayTitleRow">
-        <div class="overlayTitle">Sex Log</div>
-        <button id="sexClose" class="btn ghost sm">Close</button>
+        <div class="overlayTitle">Sex log</div>
+        <button id="sexClose" class="btn ghost sm" type="button">Close</button>
       </div>
 
       <div class="grid2">
         <div>
           <div class="formRow">
-            <label class="label">Date</label>
+            <label class="label" for="sexDate">Date</label>
             <input id="sexDate" class="input" type="date" />
           </div>
 
           <div class="formRow">
-            <label class="label">Protection</label>
+            <label class="label" for="sexProtection">Protection</label>
             <select id="sexProtection" class="input">
               <option value="protected">Protected</option>
               <option value="unprotected">Unprotected</option>
@@ -210,16 +297,16 @@
           </div>
 
           <div class="formRow">
-            <label class="label">Notes (optional)</label>
-            <textarea id="sexNotes" class="input" rows="3" placeholder="Optional…"></textarea>
+            <label class="label" for="sexNotes">Notes (optional)</label>
+            <textarea id="sexNotes" class="input" rows="3" placeholder="Optional"></textarea>
           </div>
 
           <div class="quick">
-            <button id="sexSave" class="btn primary">Save Entry</button>
-            <button id="sexDeleteDay" class="btn ghost">Delete This Date</button>
+            <button id="sexSave" class="btn primary" type="button">Save entry</button>
+            <button id="sexDeleteDay" class="btn ghost" type="button">Delete this date</button>
           </div>
 
-          <div class="tiny muted mt">Sex log is always stored inside the encrypted vault if passcode is set.</div>
+          <div class="tiny muted mt">Stored in the encrypted vault when a passcode is set. This is not contraception.</div>
         </div>
 
         <div>

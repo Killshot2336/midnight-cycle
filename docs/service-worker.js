@@ -1,6 +1,6 @@
 self.addEventListener("install", (e) => {
   e.waitUntil(
-    caches.open("midnight-v1").then((cache) => cache.addAll([
+    caches.open("midnight-v3").then((cache) => cache.addAll([
       "./",
       "./index.html",
       "./styles.css",
@@ -14,6 +14,7 @@ self.addEventListener("install", (e) => {
       "./modules/backup.js",
       "./modules/crypto.js",
       "./modules/driftModel.js",
+      "./modules/cycleModel.js",
       "./modules/cycleEngine.js",
       "./modules/forecastEngine.js",
       "./modules/probability.js",
@@ -30,7 +31,11 @@ self.addEventListener("install", (e) => {
 });
 
 self.addEventListener("activate", (e) => {
-  e.waitUntil(self.clients.claim());
+  e.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter((k) => k !== "midnight-v3").map((k) => caches.delete(k)));
+    await self.clients.claim();
+  })());
 });
 
 self.addEventListener("fetch", (e) => {

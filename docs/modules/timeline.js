@@ -1,6 +1,13 @@
+import { formatWeekday } from "./cycleModel.js";
+
 export function renderTimeline(el, forecast) {
   el.innerHTML = "";
-  for (const d of forecast) {
+  const rows = forecast?.days || [];
+  if (!rows.length) {
+    el.innerHTML = `<div class="tiny muted">Log a period start and the next two weeks will show up here.</div>`;
+    return;
+  }
+  for (const d of rows) {
     const row = document.createElement("div");
     row.className = "dayRow";
 
@@ -9,18 +16,18 @@ export function renderTimeline(el, forecast) {
 
     const date = document.createElement("div");
     date.className = "dayDate";
-    date.textContent = d.date;
+    date.textContent = formatWeekday(d.date);
 
     const meta = document.createElement("div");
     meta.className = "dayMeta";
-    meta.textContent = `${d.phase} • Mood ${d.feel.mood} • Energy ${d.feel.energy} • Cramps ${d.feel.cramps}`;
+    meta.textContent = d.note ? `${d.label} · ${d.note}` : d.label;
 
     left.appendChild(date);
     left.appendChild(meta);
 
     const pill = document.createElement("div");
     pill.className = "pill";
-    pill.textContent = `Conf ${Math.round(d.probs.confidence*100)}%`;
+    pill.textContent = d.label;
 
     row.appendChild(left);
     row.appendChild(pill);

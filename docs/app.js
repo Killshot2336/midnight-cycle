@@ -1,38 +1,74 @@
 import { CONFIG, initFirebase, ensureUserDoc } from "./firebase.js";
-import { todayISO } from "./modules/guard.js";
+import { todayISO, addDaysISO } from "./modules/guard.js";
 import { loadMeta, saveMeta, loadVaultRaw, saveVaultRaw } from "./modules/storage.js";
 import { applyTheme, setInputsFromTheme, themeFromInputs, presetForStyle } from "./modules/theme.js";
 import { downloadJSON } from "./modules/backup.js";
-import { ensureVault, addPeriodStart, setDaily } from "./modules/cycleEngine.js";
-import { phaseProbabilities } from "./modules/probability.js";
+import { ensureVault, updateDay, restoreDay, addPeriodStart, markPeriodRange } from "./modules/cycleEngine.js";
 import { buildForecast } from "./modules/forecastEngine.js";
-import { renderCalendar } from "./modules/calendar.js";
+import {
+  formatWeekday,
+  headlineFor,
+  daySentence,
+  trackSentence,
+  lateSentence,
+  wideSentence,
+  fertileSentence,
+  topSymptom
+} from "./modules/cycleModel.js";
+import { renderCalendar, monthLabel, shiftMonth } from "./modules/calendar.js";
 import { renderTimeline } from "./modules/timeline.js";
-import { ensureSkill, awardXP, skillCards, rankFromXP } from "./modules/skilltree.js";
+import { dataGates } from "./modules/skilltree.js";
+import { SYMPTOM_CHIPS, insightSentence, clinicianSummary } from "./modules/insights.js";
 import { hasPasscode, isLocked, setPasscode, unlock as unlockVault, lockNow, setLocked, getSalt } from "./modules/lock.js";
 import { encryptJSON } from "./modules/crypto.js";
 import { ensureSexDefaults, seedSexDateInput, setSexEntry, getSexEntry, deleteSexEntry, listSexEntries } from "./modules/sexLog.js";
 import { shouldShowBanner, markBannerShown } from "./modules/notifyFallback.js";
 
+const FLOWS = [
+  ["none", "None"],
+  ["spotting", "Spotting"],
+  ["light", "Light"],
+  ["medium", "Medium"],
+  ["heavy", "Heavy"]
+];
+
 const el = {
   appTitle: document.getElementById("appTitle"),
   appSub: document.getElementById("appSub"),
   statusPill: document.getElementById("statusPill"),
-
-  todayBadge: document.getElementById("todayBadge"),
-  phaseText: document.getElementById("phaseText"),
-  confidenceText: document.getElementById("confidenceText"),
-  pPeriod: document.getElementById("pPeriod"),
-  pPms: document.getElementById("pPms"),
-  pOvu: document.getElementById("pOvu"),
-  barPeriod: document.getElementById("barPeriod"),
-  barPms: document.getElementById("barPms"),
-  barOvu: document.getElementById("barOvu"),
-  whyBox: document.getElementById("whyBox"),
-
+  logDayLabel: document.getElementById("logDayLabel"),
+  headline: document.getElementById("headline"),
+  daySentence: document.getElementById("daySentence"),
+  trackLine: document.getElementById("trackLine"),
+  lateNote: document.getElementById("lateNote"),
+  wideNote: document.getElementById("wideNote"),
+  insightLine: document.getElementById("insightLine"),
+  fertileLine: document.getElementById("fertileLine"),
+  flowRow: document.getElementById("flowRow"),
+  undoBtn: document.getElementById("undoBtn"),
+  backTodayBtn: document.getElementById("backTodayBtn"),
+  symptomChips: document.getElementById("symptomChips"),
+  moreToggle: document.getElementById("moreToggle"),
+  moreBox: document.getElementById("moreBox"),
+  lhInput: document.getElementById("lhInput"),
+  bbtInput: document.getElementById("bbtInput"),
+  mucusInput: document.getElementById("mucusInput"),
+  notesInput: document.getElementById("notesInput"),
   timeline: document.getElementById("timeline"),
   calendar: document.getElementById("calendar"),
-
+  calPrev: document.getElementById("calPrev"),
+  calNext: document.getElementById("calNext"),
+  calLabel: document.getElementById("calLabel"),
+  rangeStart: document.getElementById("rangeStart"),
+  rangeEnd: document.getElementById("rangeEnd"),
+  rangeApply: document.getElementById("rangeApply"),
+  rangeNote: document.getElementById("rangeNote"),
+  summaryText: document.getElementById("summaryText"),
+  copySummary: document.getElementById("copySummary"),
+  copyNote: document.getElementById("copyNote"),
+  gates: document.getElementById("gates"),
+  situation: document.getElementById("situation"),
+  goal: document.getElementById("goal"),
   themeStyle: document.getElementById("themeStyle"),
   accent: document.getElementById("accent"),
   bg: document.getElementById("bg"),
@@ -41,16 +77,13 @@ const el = {
   notifyTime: document.getElementById("notifyTime"),
   tz: document.getElementById("tz"),
   saveThemeBtn: document.getElementById("saveThemeBtn"),
+  enablePushBtn: document.getElementById("enablePushBtn"),
   customNote: document.getElementById("customNote"),
-
-  startTodayBtn: document.getElementById("startTodayBtn"),
-  logTodayBtn: document.getElementById("logTodayBtn"),
   sexLogBtn: document.getElementById("sexLogBtn"),
   vaultExportBtn: document.getElementById("vaultExportBtn"),
   vaultImportBtn: document.getElementById("vaultImportBtn"),
   vaultFile: document.getElementById("vaultFile"),
   setPasscodeBtn: document.getElementById("setPasscodeBtn"),
-
   lockBtn: document.getElementById("lockBtn"),
   panicBtn: document.getElementById("panicBtn"),
   lockOverlay: document.getElementById("lockOverlay"),
@@ -58,10 +91,9 @@ const el = {
   unlockBtn: document.getElementById("unlockBtn"),
   usePanicBtn: document.getElementById("usePanicBtn"),
   lockMsg: document.getElementById("lockMsg"),
-
   notifyBanner: document.getElementById("notifyBanner"),
+  bannerText: document.getElementById("bannerText"),
   bannerClose: document.getElementById("bannerClose"),
-
   sexOverlay: document.getElementById("sexOverlay"),
   sexClose: document.getElementById("sexClose"),
   sexDate: document.getElementById("sexDate"),
@@ -70,19 +102,25 @@ const el = {
   sexSave: document.getElementById("sexSave"),
   sexDeleteDay: document.getElementById("sexDeleteDay"),
   sexList: document.getElementById("sexList"),
-
-  skillTree: document.getElementById("skillTree"),
-  skillRank: document.getElementById("skillRank")
+  onboardOverlay: document.getElementById("onboardOverlay"),
+  obLast: document.getElementById("obLast"),
+  obExtra: document.getElementById("obExtra"),
+  obAdd: document.getElementById("obAdd"),
+  obSituation: document.getElementById("obSituation"),
+  obGoal: document.getElementById("obGoal"),
+  obSave: document.getElementById("obSave"),
+  obSkip: document.getElementById("obSkip")
 };
 
 let fb = null;
 let meta = loadMeta();
 let vault = null;
 let panic = false;
-
-// IMPORTANT: session-only passcode so encrypted vault can persist changes.
-// It is NOT stored anywhere permanent.
 let sessionPasscode = "";
+let selectedISO = null;
+let monthAnchor = null;
+let undo = null;
+let fillingMore = false;
 
 main().catch((e) => {
   console.error("Fatal init error:", e);
@@ -95,12 +133,12 @@ async function main() {
   el.statusPill.textContent = "Initializing…";
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./service-worker.js").catch(()=>{});
+    navigator.serviceWorker.register("./service-worker.js").catch(() => {});
   }
 
   try {
-    fb = await initFirebase();
-    await ensureUserDoc(fb);
+    fb = await withTimeout(initFirebase(), 4000);
+    await withTimeout(ensureUserDoc(fb), 3000);
   } catch (e) {
     console.warn("Firebase init failed (local-only continues):", e);
     fb = null;
@@ -110,10 +148,8 @@ async function main() {
 
   const tz = vault?.profile?.tz || meta?.profile?.tz || CONFIG.defaults.tz;
   vault = ensureVault(vault, tz);
-  ensureSkill(vault);
   ensureSexDefaults(vault);
 
-  // Apply theme
   const theme = vault.profile.theme || meta.profile?.theme || null;
   const applied = applyTheme(theme);
   meta.profile = meta.profile || {};
@@ -123,11 +159,12 @@ async function main() {
   setInputsFromTheme(applied, el);
   el.tz.value = vault.profile.tz || CONFIG.defaults.tz;
   el.notifyTime.value = vault.profile.notifyTime || CONFIG.defaults.notifyTime;
-  el.customNote.textContent = "Theme applies instantly. Save to persist.";
+  el.situation.value = vault.profile.situation || "cycling";
+  el.goal.value = vault.profile.goal || "bleed";
+  el.customNote.textContent = "Appearance applies as you change it. Save to keep it.";
 
   wireUI();
   renderAll();
-  maybeShowFallbackBanner();
 
   el.statusPill.textContent = fb ? "Online sync ready" : "Local-only mode";
 }
@@ -145,7 +182,6 @@ async function loadVaultWithOptionalUnlock() {
     return v;
   }
 
-  // If passcode enabled, vault is encrypted. We require unlock (sessionPasscode unknown).
   if (hasPasscode()) {
     showLockOverlay(true);
     const unlocked = await waitForUnlock();
@@ -159,7 +195,7 @@ function wireUI() {
   const applyFromInputs = () => {
     const t = themeFromInputs(el);
     applyTheme(t);
-    el.customNote.textContent = "Applied live. Tap Save to persist.";
+    el.customNote.textContent = "Applied. Save appearance to keep it.";
   };
 
   el.themeStyle.addEventListener("change", () => {
@@ -171,7 +207,7 @@ function wireUI() {
     applyFromInputs();
   });
 
-  ["accent","bg","card","text"].forEach(id=>{
+  ["accent", "bg", "card", "text"].forEach((id) => {
     el[id].addEventListener("input", applyFromInputs);
   });
 
@@ -183,7 +219,6 @@ function wireUI() {
     saveMeta(meta);
     await persistVault();
     el.customNote.textContent = "Saved.";
-    await ensurePushTokenSoft(); // user gesture path
     renderAll();
   });
 
@@ -199,44 +234,118 @@ function wireUI() {
     renderAll();
   });
 
-  el.startTodayBtn.addEventListener("click", async () => {
-    if (hasPasscode() && isLocked()) return showLockOverlay(true);
-    const iso = todayISO(vault.profile.tz);
-    addPeriodStart(vault, iso);
-    awardXP(vault, 10, "period_start");
+  el.situation.addEventListener("change", async () => {
+    vault.profile.situation = el.situation.value;
     await persistVault();
-    await ensurePushTokenSoft(); // user gesture path
     renderAll();
   });
 
-  el.logTodayBtn.addEventListener("click", async () => {
-    if (hasPasscode() && isLocked()) return showLockOverlay(true);
-    const iso = todayISO(vault.profile.tz);
-    setDaily(vault, iso, { checkin:true });
-    awardXP(vault, 3, "daily_checkin");
+  el.goal.addEventListener("change", async () => {
+    vault.profile.goal = el.goal.value;
     await persistVault();
-    await ensurePushTokenSoft(); // user gesture path
     renderAll();
   });
 
-  el.vaultExportBtn.addEventListener("click", async () => {
-    const safeVault = { ...vault, exportedAt: new Date().toISOString() };
-    downloadJSON("midnight-vault.json", safeVault);
+  el.enablePushBtn.addEventListener("click", () => ensurePushTokenSoft());
+
+  el.undoBtn.addEventListener("click", async () => {
+    if (!undo) return;
+    if (undo.multi) {
+      for (const step of undo.multi) restoreDay(vault, step.iso, step.prev);
+    } else {
+      restoreDay(vault, undo.iso, undo.prev);
+    }
+    undo = null;
+    await persistVault();
+    renderAll();
+  });
+
+  el.backTodayBtn.addEventListener("click", () => {
+    selectedISO = null;
+    renderAll();
+  });
+
+  el.moreToggle.addEventListener("click", () => {
+    el.moreBox.classList.toggle("hidden");
+    el.moreToggle.textContent = el.moreBox.classList.contains("hidden") ? "More" : "Hide extra";
+  });
+
+  el.lhInput.addEventListener("change", () => saveMore({ lh: el.lhInput.value || "" }));
+  el.mucusInput.addEventListener("change", () => saveMore({ mucus: el.mucusInput.value || "" }));
+  el.bbtInput.addEventListener("change", () => {
+    const raw = el.bbtInput.value.trim();
+    const bbt = raw === "" ? null : Number(raw);
+    saveMore({ bbt: Number.isFinite(bbt) ? bbt : null });
+  });
+  el.notesInput.addEventListener("blur", () => saveMore({ notes: el.notesInput.value }));
+
+  el.calPrev.addEventListener("click", () => {
+    const tz = vault.profile.tz || CONFIG.defaults.tz;
+    monthAnchor = shiftMonth(monthAnchor || `${todayISO(tz).slice(0, 7)}-01`, -1);
+    renderAll();
+  });
+  el.calNext.addEventListener("click", () => {
+    const tz = vault.profile.tz || CONFIG.defaults.tz;
+    monthAnchor = shiftMonth(monthAnchor || `${todayISO(tz).slice(0, 7)}-01`, 1);
+    renderAll();
+  });
+
+  el.rangeApply.addEventListener("click", async () => {
+    const start = el.rangeStart.value;
+    const end = el.rangeEnd.value;
+    if (!start || !end) {
+      el.rangeNote.textContent = "Choose a start and an end.";
+      return;
+    }
+    const tz = vault.profile.tz || CONFIG.defaults.tz;
+    const today = todayISO(tz);
+    let a = start;
+    let b = end;
+    if (b < a) { const swap = a; a = b; b = swap; }
+    if (b > today) b = today;
+    const multi = [];
+    let iso = a;
+    let n = 0;
+    while (iso <= b && n < 14) {
+      multi.push({ iso, prev: snapshotDay(vault, iso) });
+      iso = addDaysISO(iso, 1);
+      n += 1;
+    }
+    markPeriodRange(vault, a, b, today);
+    undo = { multi };
+    el.rangeNote.textContent = n ? `Marked ${n} day${n === 1 ? "" : "s"}.` : "Nothing to mark.";
+    await persistVault();
+    renderAll();
+  });
+
+  el.copySummary.addEventListener("click", async () => {
+    const text = el.summaryText.textContent || "";
+    try {
+      await navigator.clipboard.writeText(text);
+      el.copyNote.textContent = "Copied.";
+    } catch {
+      el.copyNote.textContent = "Select the summary and copy it from there.";
+    }
+  });
+
+  el.vaultExportBtn.addEventListener("click", () => {
+    downloadJSON("midnight-vault.json", { ...vault, exportedAt: new Date().toISOString() });
   });
 
   el.vaultImportBtn.addEventListener("click", () => el.vaultFile.click());
   el.vaultFile.addEventListener("change", async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const text = await file.text().catch(()=>null);
+    const text = await file.text().catch(() => null);
     if (!text) return;
     try {
       const obj = JSON.parse(text);
       vault = ensureVault(obj, vault.profile.tz);
-      ensureSkill(vault);
       ensureSexDefaults(vault);
+      undo = null;
       await persistVault();
       renderAll();
+      el.customNote.textContent = "Vault imported.";
     } catch {
       el.customNote.textContent = "Import failed (invalid JSON).";
     } finally {
@@ -247,7 +356,7 @@ function wireUI() {
   el.setPasscodeBtn.addEventListener("click", async () => {
     const code = prompt("Set a passcode (4–8 digits). Don’t forget it.");
     if (!code || code.length < 4) return;
-    sessionPasscode = code; // session-only
+    sessionPasscode = code;
     await setPasscode(code, vault);
     setLocked(false);
     el.customNote.textContent = "Passcode set. Vault is now encrypted.";
@@ -256,10 +365,10 @@ function wireUI() {
 
   el.lockBtn.addEventListener("click", async () => {
     if (!hasPasscode()) {
-      alert("Set a passcode first (Customization → Set Passcode).");
+      alert("Set a passcode first (Settings → Set passcode).");
       return;
     }
-    sessionPasscode = ""; // forget it on lock
+    sessionPasscode = "";
     await lockNow();
     showLockOverlay(true);
   });
@@ -276,14 +385,13 @@ function wireUI() {
       el.lockMsg.textContent = "Wrong passcode.";
       return;
     }
-    sessionPasscode = code; // session-only
+    sessionPasscode = code;
     vault = ensureVault(res.vault || {}, CONFIG.defaults.tz);
-    ensureSkill(vault);
     ensureSexDefaults(vault);
     el.passInput.value = "";
     showLockOverlay(false);
     el.lockMsg.textContent = "";
-    await persistVault(); // re-save encrypted to guarantee consistency
+    await persistVault();
     renderAll();
   });
 
@@ -294,8 +402,6 @@ function wireUI() {
 
   el.sexLogBtn.addEventListener("click", () => openSexLog());
   el.sexClose.addEventListener("click", () => closeSexLog());
-
-  // FIX: changing date updates the form
   el.sexDate.addEventListener("change", () => loadSexEntryIntoForm());
 
   el.sexSave.addEventListener("click", async () => {
@@ -306,7 +412,6 @@ function wireUI() {
       protection: el.sexProtection.value,
       notes: el.sexNotes.value
     });
-    awardXP(vault, 2, "sex_log");
     await persistVault();
     refreshSexList();
   });
@@ -320,6 +425,81 @@ function wireUI() {
     refreshSexList();
     loadSexEntryIntoForm();
   });
+
+  el.obAdd.addEventListener("click", () => {
+    const input = document.createElement("input");
+    input.type = "date";
+    input.className = "input obExtra";
+    el.obExtra.appendChild(input);
+  });
+
+  el.obSave.addEventListener("click", async () => {
+    vault.profile.situation = el.obSituation.value || "cycling";
+    vault.profile.goal = el.obGoal.value || "bleed";
+    vault.profile.onboarded = true;
+    el.situation.value = vault.profile.situation;
+    el.goal.value = vault.profile.goal;
+    const today = todayISO(vault.profile.tz || CONFIG.defaults.tz);
+    const dates = [el.obLast.value, ...[...el.obExtra.querySelectorAll("input")].map((n) => n.value)];
+    for (const iso of dates) {
+      if (iso && iso <= today) addPeriodStart(vault, iso);
+    }
+    await persistVault();
+    renderAll();
+  });
+
+  el.obSkip.addEventListener("click", async () => {
+    vault.profile.onboarded = true;
+    await persistVault();
+    renderAll();
+  });
+}
+
+function snapshotDay(vaultObj, iso) {
+  const row = vaultObj.daily?.[iso];
+  if (!row) return null;
+  return { ...row, symptoms: Array.isArray(row.symptoms) ? [...row.symptoms] : row.symptoms };
+}
+
+function loggingISO() {
+  const tz = vault.profile.tz || CONFIG.defaults.tz;
+  const today = todayISO(tz);
+  const iso = selectedISO || today;
+  return { tz, today, iso, future: iso > today };
+}
+
+async function saveMore(patch) {
+  if (fillingMore || !vault) return;
+  if (hasPasscode() && isLocked()) return showLockOverlay(true);
+  const { iso, future } = loggingISO();
+  if (future) return;
+  const prev = updateDay(vault, iso, patch);
+  undo = { iso, prev };
+  await persistVault();
+  renderAll();
+}
+
+async function logFlow(flow) {
+  if (hasPasscode() && isLocked()) return showLockOverlay(true);
+  const { iso, future } = loggingISO();
+  if (future) return;
+  const prev = updateDay(vault, iso, { flow });
+  undo = { iso, prev };
+  await persistVault();
+  renderAll();
+}
+
+async function toggleSymptom(id) {
+  if (hasPasscode() && isLocked()) return showLockOverlay(true);
+  const { iso, future } = loggingISO();
+  if (future) return;
+  const cur = new Set(vault.daily?.[iso]?.symptoms || []);
+  if (cur.has(id)) cur.delete(id);
+  else cur.add(id);
+  const prev = updateDay(vault, iso, { symptoms: [...cur] });
+  undo = { iso, prev };
+  await persistVault();
+  renderAll();
 }
 
 function setPanic(state) {
@@ -330,8 +510,11 @@ function setPanic(state) {
     el.appSub.textContent = "Schedule overview.";
     closeSexLog();
     showLockOverlay(false);
+    el.onboardOverlay.classList.add("hidden");
   } else {
     document.body.style.filter = "";
+    el.appTitle.textContent = "Midnight";
+    el.appSub.textContent = "Your cycle, private on this device.";
   }
   renderAll();
 }
@@ -341,6 +524,7 @@ function showLockOverlay(show) {
 }
 
 function openSexLog() {
+  if (vault?.profile?.goal !== "fertility") return;
   if (hasPasscode() && !sessionPasscode) {
     showLockOverlay(true);
     return;
@@ -387,65 +571,130 @@ function refreshSexList() {
   }
 }
 
-function maybeShowFallbackBanner() {
-  const tz = vault.profile.tz || CONFIG.defaults.tz;
-  const t = vault.profile.notifyTime || CONFIG.defaults.notifyTime;
-  if (shouldShowBanner(tz, t)) el.notifyBanner.classList.remove("hidden");
-  else el.notifyBanner.classList.add("hidden");
-}
-
 function renderAll() {
   if (!vault) return;
 
   const tz = vault.profile.tz || CONFIG.defaults.tz;
-  const iso = todayISO(tz);
+  const today = todayISO(tz);
+  const selected = selectedISO || today;
+  if (!monthAnchor) monthAnchor = `${today.slice(0, 7)}-01`;
+
+  const showOnboard = !panic && !vault.profile.onboarded && !(hasPasscode() && isLocked());
+  el.onboardOverlay.classList.toggle("hidden", !showOnboard);
 
   if (panic) {
-    el.todayBadge.textContent = iso;
-    el.phaseText.textContent = "—";
-    el.confidenceText.textContent = "—";
-    el.pPeriod.textContent = "—";
-    el.pPms.textContent = "—";
-    el.pOvu.textContent = "—";
-    el.barPeriod.style.width = "0%";
-    el.barPms.style.width = "0%";
-    el.barOvu.style.width = "0%";
-    el.whyBox.textContent = "Panic mode enabled.";
+    el.headline.textContent = today;
+    el.daySentence.textContent = "";
+    el.trackLine.textContent = "";
+    el.lateNote.textContent = "";
+    el.wideNote.textContent = "";
+    el.insightLine.textContent = "";
+    el.fertileLine.textContent = "";
+    el.flowRow.innerHTML = "";
+    el.symptomChips.innerHTML = "";
     el.timeline.innerHTML = "";
     el.calendar.innerHTML = "";
-    el.skillTree.innerHTML = "";
-    el.skillRank.textContent = "—";
+    el.summaryText.textContent = "";
+    el.gates.innerHTML = "";
+    el.sexLogBtn.classList.add("hidden");
+    el.notifyBanner.classList.add("hidden");
     el.statusPill.textContent = "Panic mode";
     return;
   }
 
-  const probs = phaseProbabilities(vault, iso);
-  const phase = pickPhaseLabel(probs);
+  const forecast = buildForecast(vault, tz, 14, today);
+  const model = forecast.model;
+  const day = vault.daily?.[selected] || {};
 
-  el.todayBadge.textContent = iso;
-  el.phaseText.textContent = phase;
-  el.confidenceText.textContent = `${Math.round(probs.confidence*100)}%`;
+  const future = selected > today;
+  el.logDayLabel.textContent = selected === today
+    ? "Today"
+    : (future ? `${formatWeekday(selected)} is still a forecast` : `Logging ${formatWeekday(selected)}`);
+  el.headline.textContent = headlineFor(model);
+  el.daySentence.textContent = daySentence(model);
+  el.trackLine.textContent = trackSentence(model.track);
+  el.lateNote.textContent = lateSentence(model);
+  el.wideNote.textContent = wideSentence(model);
+  el.insightLine.textContent = insightSentence(vault);
+  el.fertileLine.textContent = fertileSentence(model);
 
-  setBar(el.barPeriod, el.pPeriod, probs.period);
-  setBar(el.barPms, el.pPms, probs.pms);
-  setBar(el.barOvu, el.pOvu, probs.ovu);
+  el.undoBtn.classList.toggle("hidden", !undo);
+  el.backTodayBtn.classList.toggle("hidden", selected === today);
+  el.sexLogBtn.classList.toggle("hidden", vault.profile.goal !== "fertility");
 
-  el.whyBox.textContent = (probs.reasons || []).join("\n");
-
-  const forecast = buildForecast(vault, tz, 14, iso);
+  renderFlow(day.flow || "");
+  renderChips(day.symptoms || []);
+  fillMore(day);
   renderTimeline(el.timeline, forecast);
-  renderCalendar(el.calendar, vault, tz, iso);
+  el.calLabel.textContent = monthLabel(monthAnchor);
+  renderCalendar(el.calendar, {
+    vault,
+    model,
+    anchorISO: monthAnchor,
+    selectedISO: selected,
+    today,
+    onSelect: (iso) => {
+      selectedISO = iso === today ? null : iso;
+      renderAll();
+    }
+  });
 
-  const { label } = rankFromXP(vault.skill.xp);
-  el.skillRank.textContent = `${label} • XP ${vault.skill.xp}`;
-  renderSkillTree();
+  el.summaryText.textContent = clinicianSummary(vault, model);
+  renderGates(model);
 
-  maybeShowFallbackBanner();
+  maybeShowFallbackBanner(model, today, tz);
 }
 
-function renderSkillTree() {
-  const cards = skillCards(vault);
-  el.skillTree.innerHTML = "";
+function renderFlow(current) {
+  el.flowRow.innerHTML = "";
+  for (const [value, label] of FLOWS) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "flowBtn" + (current === value ? " on" : "");
+    btn.textContent = label;
+    const { future } = loggingISO();
+    btn.disabled = future;
+    btn.addEventListener("click", () => logFlow(value));
+    el.flowRow.appendChild(btn);
+  }
+}
+
+function renderChips(selectedSymptoms) {
+  const on = new Set(selectedSymptoms || []);
+  const counts = {};
+  for (const row of Object.values(vault.daily || {})) {
+    for (const id of row?.symptoms || []) counts[id] = (counts[id] || 0) + 1;
+  }
+  const chips = [...SYMPTOM_CHIPS].sort((a, b) => (counts[b.id] || 0) - (counts[a.id] || 0));
+  el.symptomChips.innerHTML = "";
+  for (const chip of chips) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "chip" + (on.has(chip.id) ? " on" : "");
+    btn.textContent = chip.label;
+    btn.disabled = loggingISO().future;
+    btn.addEventListener("click", () => toggleSymptom(chip.id));
+    el.symptomChips.appendChild(btn);
+  }
+}
+
+function fillMore(day) {
+  fillingMore = true;
+  el.lhInput.value = day.lh || "";
+  el.bbtInput.value = typeof day.bbt === "number" ? String(day.bbt) : "";
+  el.mucusInput.value = day.mucus || "";
+  el.notesInput.value = day.notes || "";
+  const future = loggingISO().future;
+  el.lhInput.disabled = future;
+  el.bbtInput.disabled = future;
+  el.mucusInput.disabled = future;
+  el.notesInput.disabled = future;
+  fillingMore = false;
+}
+
+function renderGates(model) {
+  const cards = dataGates(model, !!topSymptom(vault));
+  el.gates.innerHTML = "";
   for (const c of cards) {
     const div = document.createElement("div");
     div.className = "skillCard";
@@ -453,26 +702,35 @@ function renderSkillTree() {
       <div class="skillTitle">${c.name}</div>
       <div class="skillDesc">${c.desc}</div>
       <div class="skillFooter">
-        <div class="pill">${c.active ? "Unlocked" : `Req Rank ${c.need}`}</div>
+        <div class="pill">${c.active ? "Ready" : "Needs more logs"}</div>
       </div>
     `;
-    el.skillTree.appendChild(div);
+    el.gates.appendChild(div);
   }
 }
 
-/**
- * FIX: encrypted vault now saves correctly.
- * - If passcode enabled: re-encrypt with sessionPasscode (session only) and save.
- * - If passcode enabled but sessionPasscode missing: do not save; require unlock.
- */
+function maybeShowFallbackBanner(model, today, tz) {
+  const tomorrow = addDaysISO(today, 1);
+  const soon = model.median === today || model.median === tomorrow;
+  const relevant = soon && !model.paused && !model.inBleed;
+  const t = vault.profile.notifyTime || CONFIG.defaults.notifyTime;
+  if (shouldShowBanner(tz, t, { relevant })) {
+    el.bannerText.textContent = model.median === today
+      ? "Most likely today."
+      : (model.muB >= 4
+        ? "Most likely tomorrow. Your heavier days are usually the first two."
+        : "Most likely tomorrow.");
+    el.notifyBanner.classList.remove("hidden");
+  } else {
+    el.notifyBanner.classList.add("hidden");
+  }
+}
+
 async function persistVault() {
   saveMeta(meta);
 
   if (hasPasscode()) {
-    if (!sessionPasscode) {
-      // don’t accidentally downgrade to plaintext
-      return;
-    }
+    if (!sessionPasscode) return;
     const salt = getSalt() || "";
     const enc = await encryptJSON(sessionPasscode, vault, salt);
     saveVaultRaw(JSON.stringify(enc));
@@ -495,7 +753,7 @@ async function waitForUnlock() {
         el.lockMsg.textContent = "Wrong passcode.";
         return;
       }
-      sessionPasscode = code; // session-only
+      sessionPasscode = code;
       el.passInput.value = "";
       showLockOverlay(false);
       el.lockMsg.textContent = "";
@@ -505,46 +763,45 @@ async function waitForUnlock() {
   });
 }
 
-function setBar(bar, label, p) {
-  const pct = Math.round(p*100);
-  bar.style.width = `${pct}%`;
-  label.textContent = `${pct}%`;
-}
-
-function pickPhaseLabel(p) {
-  const arr = [["Period",p.period],["PMS",p.pms],["Ovulation",p.ovu],["Neutral",p.neutral]].sort((a,b)=>b[1]-a[1]);
-  return arr[0][0];
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), ms))
+  ]);
 }
 
 function escapeHtml(s) {
-  return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+  return String(s).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
 
-/**
- * Client push token wiring (best-effort):
- * - Only runs after a user click (Save/Start/Log)
- * - Requests Notification permission
- * - Gets FCM token and stores to Firestore user doc
- */
 async function ensurePushTokenSoft() {
-  if (!fb?.messaging) return;
-  if (!("Notification" in window)) return;
+  if (!fb?.messaging) {
+    el.customNote.textContent = "Reminders inside the app are on. Push is not available in this browser.";
+    return;
+  }
+  if (!("Notification" in window)) {
+    el.customNote.textContent = "This browser cannot show push reminders.";
+    return;
+  }
 
-  // already granted?
   if (Notification.permission === "default") {
     try {
       const perm = await Notification.requestPermission();
-      if (perm !== "granted") return;
-    } catch { return; }
+      if (perm !== "granted") {
+        el.customNote.textContent = "Permission was not granted. In-app reminders still work.";
+        return;
+      }
+    } catch {
+      return;
+    }
   } else if (Notification.permission !== "granted") {
+    el.customNote.textContent = "Notifications are blocked in the browser.";
     return;
   }
 
   try {
     const token = await fb.getToken(fb.messaging, { vapidKey: CONFIG.vapidKey });
     if (!token) return;
-
-    // save to user doc
     const ref = fb.doc(fb.db, "users", fb.uid);
     await fb.setDoc(ref, {
       fcmToken: token,
@@ -552,9 +809,10 @@ async function ensurePushTokenSoft() {
       tz: vault.profile.tz || CONFIG.defaults.tz,
       notifyTime: vault.profile.notifyTime || CONFIG.defaults.notifyTime
     }, { merge: true });
-
     el.statusPill.textContent = "Push enabled";
+    el.customNote.textContent = "Device reminders enabled.";
   } catch (e) {
     console.warn("Push token setup failed:", e);
+    el.customNote.textContent = "Could not enable push. In-app reminders still work.";
   }
 }
