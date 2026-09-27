@@ -395,10 +395,10 @@ export function dayOutlook(model, iso, nudge = 0) {
   let fertile = model.showFertile && draws.length ? fertileHits / denom : 0;
 
   const last = model.episodes?.length ? model.episodes[model.episodes.length - 1] : null;
-  if (last && model.today && iso >= model.today && iso >= last.start) {
+  if (last && model.today && iso >= model.today && iso >= last.start && !bleedStopped(model.daily, last.end, iso)) {
     const idx = daysBetweenISO(last.start, iso);
     const expectedLen = Math.max(last.bleedDays, Math.round(model.muB || 5));
-    if (idx >= 0 && idx < expectedLen && model.daily?.[iso]?.flow !== "none") {
+    if (idx >= 0 && idx < expectedLen) {
       const z = (idx + 0.5 - model.muB) / Math.max(model.sdB, 0.8);
       const pStay = 1 - normalCdf(z);
       bleed = 1 - (1 - bleed) * (1 - clamp(pStay, 0, 0.95));
@@ -420,6 +420,13 @@ export function dayOutlook(model, iso, nudge = 0) {
   if (bleed >= 0.34 && bleed >= fertile) label = model.situation === "hormonal" ? "Expected bleed" : "Bleeding likely";
   else if (model.showFertile && fertile >= 0.34) label = "Fertile";
   return { bleed, fertile, label };
+}
+
+function bleedStopped(daily, end, iso) {
+  for (let day = addDaysISO(end, 1); day <= iso; day = addDaysISO(day, 1)) {
+    if (daily?.[day]?.flow === "none") return true;
+  }
+  return false;
 }
 
 function normalCdf(z) {

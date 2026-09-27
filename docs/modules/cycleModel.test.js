@@ -78,6 +78,15 @@ test("an unlogged day after a start is not treated as bleeding now", () => {
   }, today);
   assert.equal(loggedToday.inBleed, true);
   assert.equal(loggedToday.bleedDay, 2);
+
+  const stopped = buildForecastModel({
+    daily: {
+      "2026-09-20": { flow: "medium" },
+      "2026-09-21": { flow: "none" }
+    },
+    profile: { situation: "cycling", goal: "bleed" }
+  }, "2026-09-22");
+  assert.ok(dayOutlook(stopped, "2026-09-22").bleed < 0.34);
 });
 
 test("a late cycle stays overdue instead of wrapping", () => {
