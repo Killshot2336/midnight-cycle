@@ -29,8 +29,10 @@
     <main class="main">
       <section class="card hero isPrivate">
         <div class="heroLeft">
+          <div id="charmLayer" class="charmLayer isCute corner-tr"></div>
           <div id="logDayLabel" class="kpiLabel">Today</div>
           <h1 id="headline" class="headline">Loading…</h1>
+          <p id="personalLine" class="personalLine isCute hidden"></p>
           <p id="daySentence" class="lead"></p>
           <p id="trackLine" class="lead"></p>
           <p id="lateNote" class="lead lateNote"></p>
@@ -121,6 +123,158 @@
         <div id="gates" class="skillTree"></div>
       </section>
 
+      <section id="appearanceCard" class="card appearance isPrivate">
+        <div class="cardTitle">Appearance</div>
+        <p class="lead">Make the screen yours. Charms and phrases are decoration. They do not change the forecast.</p>
+
+        <div class="lookPreview" aria-hidden="true">
+          <div class="previewHeadline">Most likely Friday</div>
+          <div class="flowRow">
+            <button class="flowBtn" type="button" tabindex="-1" data-flow="none">None</button>
+            <button class="flowBtn" type="button" tabindex="-1" data-flow="spotting">Spotting</button>
+            <button class="flowBtn" type="button" tabindex="-1" data-flow="light">Light</button>
+            <button class="flowBtn on" type="button" tabindex="-1" data-flow="medium">Medium</button>
+            <button class="flowBtn" type="button" tabindex="-1" data-flow="heavy">Heavy</button>
+          </div>
+          <div class="previewWeek calendar">
+            <div class="calCell"><div class="calDay">12</div></div>
+            <div class="calCell calToday"><div class="calDay">13</div><div class="calTag">Today</div></div>
+            <div class="calCell calLogged"><div class="calDay">14</div><div class="calTag tagLogged">Logged</div></div>
+            <div class="calCell calExpected"><div class="calDay">15</div><div class="calTag tagExpected">Expected</div></div>
+            <div class="calCell"><div class="calDay">16</div></div>
+            <div class="calCell calFertile"><div class="calDay">17</div><div class="calTag tagFertile">Fertile</div></div>
+            <div class="calCell"><div class="calDay">18</div></div>
+          </div>
+        </div>
+
+        <div class="group">
+          <div class="label">Looks</div>
+          <div class="lookGrid">
+            <button class="lookPick" type="button" data-look="velvet">Velvet</button>
+            <button class="lookPick" type="button" data-look="midnight">Midnight</button>
+            <button class="lookPick" type="button" data-look="noir">Noir</button>
+            <button class="lookPick" type="button" data-look="gold">Gold hour</button>
+            <button class="lookPick" type="button" data-look="sea">Sea glass</button>
+            <button class="lookPick" type="button" data-look="blush">Blush</button>
+            <button class="lookPick" type="button" data-look="paper">Paper</button>
+            <button class="lookPick" type="button" data-look="custom">Custom</button>
+          </div>
+        </div>
+
+        <input id="themeStyle" type="hidden" value="velvet" />
+        <input id="themeBase" type="hidden" value="velvet" />
+        <input id="mood" type="hidden" value="glow" />
+        <input id="pattern" type="hidden" value="stars" />
+        <input id="typeface" type="hidden" value="serif" />
+        <input id="shape" type="hidden" value="soft" />
+        <input id="room" type="hidden" value="airy" />
+        <input id="marks" type="hidden" value="wash" />
+        <input id="chips" type="hidden" value="pills" />
+        <input id="charm" type="hidden" value="moon" />
+        <input id="charm2" type="hidden" value="star" />
+        <input id="charmCorner" type="hidden" value="tr" />
+
+        <div class="group">
+          <div class="label">Colors</div>
+          <div class="colorGrid">
+            <label class="colorField"><span class="label">Background</span><input id="bg" class="input" type="color" value="#140c14" /></label>
+            <label class="colorField"><span class="label">Cards</span><input id="card" class="input" type="color" value="#24141f" /></label>
+            <label class="colorField"><span class="label">Accent</span><input id="accent" class="input" type="color" value="#e7a0b6" /></label>
+            <label class="colorField"><span class="label">Text</span><input id="text" class="input" type="color" value="#f6e9ef" /></label>
+            <label class="colorField"><span class="label">Marks</span><input id="mark" class="input" type="color" value="#e4c58a" /></label>
+            <label class="colorField"><span class="label">None</span><input id="flowNone" class="input" type="color" value="#6e6470" /></label>
+            <label class="colorField"><span class="label">Spotting</span><input id="flowSpot" class="input" type="color" value="#e4c58a" /></label>
+            <label class="colorField"><span class="label">Light</span><input id="flowLight" class="input" type="color" value="#f0c2cf" /></label>
+            <label class="colorField"><span class="label">Medium</span><input id="flowMedium" class="input" type="color" value="#d46a8a" /></label>
+            <label class="colorField"><span class="label">Heavy</span><input id="flowHeavy" class="input" type="color" value="#8e2f45" /></label>
+          </div>
+          <div class="quick mt">
+            <button id="resetFlowBtn" class="btn ghost sm" type="button">Reset bleed colors</button>
+          </div>
+        </div>
+
+        <div class="group">
+          <div class="label">Background</div>
+          <div class="choiceRow">
+            <button class="choicePick" type="button" data-choice="mood" data-value="plain">Plain</button>
+            <button class="choicePick" type="button" data-choice="mood" data-value="glow">Soft glow</button>
+            <button class="choicePick" type="button" data-choice="mood" data-value="silk">Silk</button>
+          </div>
+          <div class="choiceRow mt">
+            <button class="choicePick" type="button" data-choice="pattern" data-value="none">No pattern</button>
+            <button class="choicePick" type="button" data-choice="pattern" data-value="stars">Stars</button>
+            <button class="choicePick" type="button" data-choice="pattern" data-value="lace">Lace</button>
+            <button class="choicePick" type="button" data-choice="pattern" data-value="silk">Silk lines</button>
+          </div>
+        </div>
+
+        <div class="group">
+          <div class="label">Headline type</div>
+          <div class="choiceRow">
+            <button class="choicePick" type="button" data-choice="typeface" data-value="sharp">Sharp</button>
+            <button class="choicePick" type="button" data-choice="typeface" data-value="serif">Serif</button>
+            <button class="choicePick" type="button" data-choice="typeface" data-value="display">Display</button>
+          </div>
+        </div>
+
+        <div class="group">
+          <div class="label">Shape and room</div>
+          <div class="choiceRow">
+            <button class="choicePick" type="button" data-choice="shape" data-value="soft">Soft</button>
+            <button class="choicePick" type="button" data-choice="shape" data-value="quiet">Quiet</button>
+            <button class="choicePick" type="button" data-choice="room" data-value="airy">Airy</button>
+            <button class="choicePick" type="button" data-choice="room" data-value="compact">Compact</button>
+          </div>
+        </div>
+
+        <div class="group">
+          <div class="label">Calendar marks</div>
+          <div class="choiceRow">
+            <button class="choicePick" type="button" data-choice="marks" data-value="wash">Wash</button>
+            <button class="choicePick" type="button" data-choice="marks" data-value="dot">Dot</button>
+            <button class="choicePick" type="button" data-choice="marks" data-value="ring">Ring</button>
+          </div>
+        </div>
+
+        <div class="group">
+          <div class="label">Symptom chips</div>
+          <div class="choiceRow">
+            <button class="choicePick" type="button" data-choice="chips" data-value="pills">Pills</button>
+            <button class="choicePick" type="button" data-choice="chips" data-value="squares">Squares</button>
+            <button class="choicePick" type="button" data-choice="chips" data-value="stamps">Stamps</button>
+          </div>
+        </div>
+
+        <div class="group">
+          <div class="label">Charms</div>
+          <div id="charmPicker" class="charmRow"></div>
+          <div class="label mt">Second charm</div>
+          <div id="charmPicker2" class="charmRow"></div>
+          <div class="label mt">Corner</div>
+          <div class="choiceRow">
+            <button class="choicePick" type="button" data-choice="charmCorner" data-value="tl">Top left</button>
+            <button class="choicePick" type="button" data-choice="charmCorner" data-value="tr">Top right</button>
+            <button class="choicePick" type="button" data-choice="charmCorner" data-value="bl">Bottom left</button>
+            <button class="choicePick" type="button" data-choice="charmCorner" data-value="br">Bottom right</button>
+          </div>
+        </div>
+
+        <div class="group">
+          <label class="label" for="phrase">Your line</label>
+          <input id="phrase" class="input mt" type="text" maxlength="42" placeholder="My moon, red week, be gentle" />
+        </div>
+
+        <div class="checkRow mt">
+          <label><input id="calCharm" type="checkbox" /> Charm on logged days</label>
+          <label><input id="shimmer" type="checkbox" /> Quiet shimmer when you log bleeding</label>
+        </div>
+
+        <div class="quick mt">
+          <button id="saveThemeBtn" class="btn primary" type="button">Save appearance</button>
+        </div>
+        <div id="appearanceNote" class="tiny muted mt"></div>
+      </section>
+
       <details id="settingsCard" class="card settings isPrivate">
         <summary class="cardTitle">Settings</summary>
 
@@ -142,42 +296,6 @@
             <option value="symptoms">Understand symptoms</option>
             <option value="fertility">Fertility awareness</option>
           </select>
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="formRow">
-          <label class="label" for="themeStyle">Style</label>
-          <select id="themeStyle" class="input">
-            <option value="midnight">Midnight</option>
-            <option value="obsidian">Obsidian</option>
-            <option value="noir">Noir</option>
-            <option value="neon">Neon</option>
-          </select>
-        </div>
-
-        <div class="formRow">
-          <label class="label" for="accent">Accent</label>
-          <input id="accent" class="input" type="color" value="#7c4dff" />
-        </div>
-
-        <div class="formRow">
-          <label class="label" for="bg">Background</label>
-          <input id="bg" class="input" type="color" value="#0b0f1a" />
-        </div>
-
-        <div class="formRow">
-          <label class="label" for="card">Card</label>
-          <input id="card" class="input" type="color" value="#121a2c" />
-        </div>
-
-        <div class="formRow">
-          <label class="label" for="text">Text</label>
-          <input id="text" class="input" type="color" value="#e9ecff" />
-        </div>
-
-        <div class="quick">
-          <button id="saveThemeBtn" class="btn ghost sm" type="button">Save appearance</button>
         </div>
 
         <div class="divider"></div>

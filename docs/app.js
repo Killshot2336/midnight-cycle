@@ -1,7 +1,7 @@
 import { CONFIG, initFirebase, ensureUserDoc } from "./firebase.js";
 import { todayISO, addDaysISO } from "./modules/guard.js";
 import { loadMeta, saveMeta, loadVaultRaw, saveVaultRaw } from "./modules/storage.js";
-import { applyTheme, setInputsFromTheme, themeFromInputs, presetForStyle } from "./modules/theme.js";
+import { applyTheme, setInputsFromTheme, themeFromInputs, presetForStyle, currentTheme, charmSvg, CHARMS } from "./modules/theme.js";
 import { downloadJSON } from "./modules/backup.js";
 import { ensureVault, updateDay, restoreDay, addPeriodStart, markPeriodRange } from "./modules/cycleEngine.js";
 import { buildForecast } from "./modules/forecastEngine.js";
@@ -70,10 +70,34 @@ const el = {
   situation: document.getElementById("situation"),
   goal: document.getElementById("goal"),
   themeStyle: document.getElementById("themeStyle"),
+  themeBase: document.getElementById("themeBase"),
   accent: document.getElementById("accent"),
   bg: document.getElementById("bg"),
   card: document.getElementById("card"),
   text: document.getElementById("text"),
+  mark: document.getElementById("mark"),
+  flowNone: document.getElementById("flowNone"),
+  flowSpot: document.getElementById("flowSpot"),
+  flowLight: document.getElementById("flowLight"),
+  flowMedium: document.getElementById("flowMedium"),
+  flowHeavy: document.getElementById("flowHeavy"),
+  mood: document.getElementById("mood"),
+  pattern: document.getElementById("pattern"),
+  typeface: document.getElementById("typeface"),
+  shape: document.getElementById("shape"),
+  room: document.getElementById("room"),
+  marks: document.getElementById("marks"),
+  chips: document.getElementById("chips"),
+  charm: document.getElementById("charm"),
+  charm2: document.getElementById("charm2"),
+  charmCorner: document.getElementById("charmCorner"),
+  phrase: document.getElementById("phrase"),
+  shimmer: document.getElementById("shimmer"),
+  calCharm: document.getElementById("calCharm"),
+  appearanceNote: document.getElementById("appearanceNote"),
+  personalLine: document.getElementById("personalLine"),
+  charmLayer: document.getElementById("charmLayer"),
+  resetFlowBtn: document.getElementById("resetFlowBtn"),
   notifyTime: document.getElementById("notifyTime"),
   tz: document.getElementById("tz"),
   saveThemeBtn: document.getElementById("saveThemeBtn"),
@@ -162,7 +186,7 @@ async function main() {
   el.notifyTime.value = vault.profile.notifyTime || CONFIG.defaults.notifyTime;
   el.situation.value = vault.profile.situation || "cycling";
   el.goal.value = vault.profile.goal || "bleed";
-  el.customNote.textContent = "Appearance applies as you change it. Save to keep it.";
+  el.appearanceNote.textContent = "Appearance applies as you change it. Save to keep it.";
 
   wireUI();
   renderAll();
@@ -193,24 +217,42 @@ async function loadVaultWithOptionalUnlock() {
 }
 
 function wireUI() {
-  const applyFromInputs = () => {
-    const t = themeFromInputs(el);
-    applyTheme(t);
-    el.customNote.textContent = "Applied. Save appearance to keep it.";
-  };
-
-  el.themeStyle.addEventListener("change", () => {
-    const p = presetForStyle(el.themeStyle.value);
-    el.accent.value = p.accent;
-    el.bg.value = p.bg;
-    el.card.value = p.card;
-    el.text.value = p.text;
+  fillCharmPicker(document.getElementById("charmPicker"), "charm");
+  fillCharmPicker(document.getElementById("charmPicker2"), "charm2");
+  document.querySelectorAll("[data-look]").forEach((btn) => {
+    btn.addEventListener("click", () => applyLook(btn.dataset.look));
+  });
+  document.querySelectorAll("[data-choice]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const input = el[btn.dataset.choice];
+      if (!input) return;
+      input.value = btn.dataset.value;
+      paintPickers();
+      applyFromInputs();
+    });
+  });
+  ["accent", "bg", "card", "text", "mark", "flowNone", "flowSpot", "flowLight", "flowMedium", "flowHeavy"].forEach((id) => {
+    el[id].addEventListener("input", () => {
+      el.themeStyle.value = "custom";
+      paintPickers();
+      applyFromInputs();
+    });
+  });
+  el.phrase.addEventListener("input", applyFromInputs);
+  el.shimmer.addEventListener("change", applyFromInputs);
+  el.calCharm.addEventListener("change", applyFromInputs);
+  el.resetFlowBtn.addEventListener("click", () => {
+    const style = el.themeStyle.value === "custom" ? (el.themeBase.value || "velvet") : el.themeStyle.value;
+    const p = presetForStyle(style);
+    el.flowNone.value = p.flow.none;
+    el.flowSpot.value = p.flow.spotting;
+    el.flowLight.value = p.flow.light;
+    el.flowMedium.value = p.flow.medium;
+    el.flowHeavy.value = p.flow.heavy;
+    paintPickers();
     applyFromInputs();
   });
-
-  ["accent", "bg", "card", "text"].forEach((id) => {
-    el[id].addEventListener("input", applyFromInputs);
-  });
+  paintPickers();
 
   el.saveThemeBtn.addEventListener("click", async () => {
     const t = themeFromInputs(el);
@@ -219,7 +261,7 @@ function wireUI() {
     meta.profile.theme = t;
     saveMeta(meta);
     await persistVault();
-    el.customNote.textContent = "Saved.";
+    el.appearanceNote.textContent = "Saved.";
     renderAll();
   });
 
@@ -360,6 +402,7 @@ function wireUI() {
       if (vault.profile.theme) {
         applyTheme(vault.profile.theme);
         setInputsFromTheme(vault.profile.theme, el);
+        paintPickers();
       }
       undoStack = [];
       await persistVault();
@@ -508,8 +551,13 @@ async function logFlow(flow) {
   if (future) return;
   const prev = updateDay(vault, iso, { flow });
   pushUndo({ iso, prev });
+  const shine = currentTheme().shimmer && (flow === "light" || flow === "medium" || flow === "heavy");
   await persistVault();
   renderAll();
+  if (shine) {
+    document.body.classList.add("shimmer");
+    setTimeout(() => document.body.classList.remove("shimmer"), 700);
+  }
 }
 
 async function toggleSymptom(id) {
@@ -612,6 +660,7 @@ function renderAll() {
   const showOnboard = !panic && !vault.profile.onboarded && !(hasPasscode() && isLocked());
   el.onboardOverlay.classList.toggle("hidden", !showOnboard);
   syncControls();
+  paintDecor(currentTheme());
 
   if (panic) {
     el.notifyBanner.classList.add("hidden");
@@ -655,12 +704,15 @@ function renderAll() {
   fillMore(day);
   renderTimeline(el.timeline, forecast);
   el.calLabel.textContent = monthLabel(monthAnchor);
+  const decor = currentTheme();
   renderCalendar(el.calendar, {
     vault,
     model,
     anchorISO: monthAnchor,
     selectedISO: selected,
     today,
+    calCharm: decor.calCharm,
+    charm: decor.charm,
     onSelect: (iso) => {
       selectedISO = iso === today ? null : iso;
       renderAll();
@@ -695,6 +747,73 @@ function ensureSelectValue(node, value) {
   node.appendChild(opt);
 }
 
+function applyFromInputs() {
+  const t = themeFromInputs(el);
+  applyTheme(t);
+  paintDecor(t);
+  el.appearanceNote.textContent = "Applied. Save appearance to keep it.";
+}
+
+function applyLook(style) {
+  if (style === "custom") {
+    el.themeStyle.value = "custom";
+    paintPickers();
+    applyFromInputs();
+    return;
+  }
+  const phrase = el.phrase.value;
+  const p = presetForStyle(style);
+  setInputsFromTheme({ ...p, style, base: style, phrase }, el);
+  paintPickers();
+  applyFromInputs();
+}
+
+function paintPickers() {
+  document.querySelectorAll("[data-look]").forEach((btn) => {
+    btn.classList.toggle("on", btn.dataset.look === el.themeStyle.value);
+  });
+  document.querySelectorAll("[data-choice]").forEach((btn) => {
+    const input = el[btn.dataset.choice];
+    btn.classList.toggle("on", !!input && input.value === btn.dataset.value);
+  });
+}
+
+function fillCharmPicker(container, choice) {
+  if (!container) return;
+  container.innerHTML = "";
+  for (const id of CHARMS) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "charmPick";
+    btn.dataset.choice = choice;
+    btn.dataset.value = id;
+    btn.title = id === "none" ? "None" : id;
+    if (id === "none") btn.textContent = "·";
+    else btn.innerHTML = charmSvg(id);
+    container.appendChild(btn);
+  }
+}
+
+function paintDecor(theme) {
+  const t = theme || currentTheme();
+  if (el.personalLine) {
+    el.personalLine.textContent = t.phrase || "";
+    el.personalLine.classList.toggle("hidden", !t.phrase);
+  }
+  if (!el.charmLayer) return;
+  el.charmLayer.className = `charmLayer isCute corner-${t.charmCorner}`;
+  el.charmLayer.replaceChildren();
+  for (const id of [t.charm, t.charm2]) {
+    const svg = charmSvg(id);
+    if (!svg) continue;
+    const span = document.createElement("span");
+    span.className = "charm";
+    span.innerHTML = svg;
+    el.charmLayer.appendChild(span);
+  }
+  el.charmLayer.classList.toggle("hidden", el.charmLayer.childElementCount === 0);
+}
+
 function pushUndo(entry) {
   undoStack.push(entry);
   if (undoStack.length > UNDO_LIMIT) undoStack.splice(0, undoStack.length - UNDO_LIMIT);
@@ -715,6 +834,7 @@ function renderFlow(current) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "flowBtn" + (current === value ? " on" : "");
+    btn.dataset.flow = value;
     btn.textContent = label;
     const { future } = loggingISO();
     btn.disabled = future;

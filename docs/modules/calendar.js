@@ -1,7 +1,8 @@
 import { dayOutlook, ANY_FLOW } from "./cycleModel.js";
+import { charmSvg } from "./theme.js";
 
 export function renderCalendar(el, opts) {
-  const { vault, model, anchorISO, selectedISO, today, onSelect, plain } = opts;
+  const { vault, model, anchorISO, selectedISO, today, onSelect, plain, calCharm, charm } = opts;
   el.innerHTML = "";
 
   const [year, monthNum] = anchorISO.split("-").map(Number);
@@ -36,32 +37,43 @@ export function renderCalendar(el, opts) {
 
     const tag = document.createElement("div");
     tag.className = "calTag";
+    let logged = false;
     if (flow === "light" || flow === "medium" || flow === "heavy") {
       tag.textContent = "Logged";
       tag.classList.add("tagLogged");
       cell.classList.add("calLogged");
+      logged = true;
     } else if (flow === "spotting") {
       tag.textContent = "Spotting";
       tag.classList.add("tagSpot");
+      cell.classList.add("calSpot");
+      logged = true;
     } else if (ANY_FLOW.has(flow)) {
       tag.textContent = "Logged";
       tag.classList.add("tagLogged");
+      cell.classList.add("calLogged");
+      logged = true;
     } else if (outlook.bleed >= 0.34) {
       tag.textContent = "Expected";
       tag.classList.add("tagExpected");
+      cell.classList.add("calExpected");
     } else if (outlook.fertile >= 0.34) {
       tag.textContent = "Fertile";
       tag.classList.add("tagFertile");
+      cell.classList.add("calFertile");
     }
 
-    const top = document.createElement("div");
-    top.className = "calTop";
     const day = document.createElement("div");
     day.className = "calDay";
     day.textContent = String(d);
-    top.appendChild(day);
-    top.appendChild(tag);
-    cell.appendChild(top);
+    cell.appendChild(day);
+    if (tag.textContent) cell.appendChild(tag);
+    if (!plain && calCharm && logged) {
+      const gem = document.createElement("span");
+      gem.className = "calGem";
+      gem.innerHTML = charmSvg(charm && charm !== "none" ? charm : "star");
+      cell.appendChild(gem);
+    }
     cell.addEventListener("click", () => onSelect(iso));
     el.appendChild(cell);
   }
