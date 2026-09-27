@@ -1,7 +1,7 @@
 import { dayOutlook, ANY_FLOW } from "./cycleModel.js";
 
 export function renderCalendar(el, opts) {
-  const { vault, model, anchorISO, selectedISO, today, onSelect } = opts;
+  const { vault, model, anchorISO, selectedISO, today, onSelect, plain } = opts;
   el.innerHTML = "";
 
   const [year, monthNum] = anchorISO.split("-").map(Number);
@@ -25,8 +25,8 @@ export function renderCalendar(el, opts) {
 
   for (let d = 1; d <= daysInMonth; d++) {
     const iso = isoOf(year, month, d);
-    const flow = vault.daily?.[iso]?.flow;
-    const outlook = dayOutlook(model, iso, 0);
+    const flow = plain ? null : vault.daily?.[iso]?.flow;
+    const outlook = plain ? { bleed: 0, fertile: 0 } : dayOutlook(model, iso, 0);
     const cell = document.createElement("button");
     cell.type = "button";
     cell.className = "calCell";

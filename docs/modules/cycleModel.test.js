@@ -63,6 +63,23 @@ test("a 35-day history places ovulation near day 21, not day 17", () => {
   assert.ok(Math.abs(model.muF - 17.5) > 2);
 });
 
+test("an unlogged day after a start is not treated as bleeding now", () => {
+  const start = "2026-09-20";
+  const today = "2026-09-21";
+  const model = buildForecastModel({
+    daily: { [start]: { flow: "medium" } },
+    profile: { situation: "cycling", goal: "bleed" }
+  }, today);
+  assert.equal(model.inBleed, false);
+  assert.equal(headlineFor(model).includes("Bleeding now"), false);
+  const loggedToday = buildForecastModel({
+    daily: { [start]: { flow: "medium" }, [today]: { flow: "medium" } },
+    profile: { situation: "cycling", goal: "bleed" }
+  }, today);
+  assert.equal(loggedToday.inBleed, true);
+  assert.equal(loggedToday.bleedDay, 2);
+});
+
 test("a late cycle stays overdue instead of wrapping", () => {
   const daily = {};
   let iso = "2024-01-01";

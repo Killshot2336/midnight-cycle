@@ -277,7 +277,12 @@ function wireUI() {
     const bbt = raw === "" ? null : Number(raw);
     saveMore({ bbt: Number.isFinite(bbt) ? bbt : null });
   });
-  el.notesInput.addEventListener("blur", () => saveMore({ notes: el.notesInput.value }));
+  el.notesInput.addEventListener("blur", () => {
+    const { iso, future } = loggingISO();
+    if (future) return;
+    if ((vault.daily?.[iso]?.notes || "") === el.notesInput.value) return;
+    saveMore({ notes: el.notesInput.value });
+  });
 
   el.calPrev.addEventListener("click", () => {
     const tz = vault.profile.tz || CONFIG.defaults.tz;
@@ -312,8 +317,13 @@ function wireUI() {
       n += 1;
     }
     markPeriodRange(vault, a, b, today);
-    undo = { multi };
-    el.rangeNote.textContent = n ? `Marked ${n} day${n === 1 ? "" : "s"}.` : "Nothing to mark.";
+    undo = n ? { multi } : null;
+    const stoppedEarly = n === 14 && addDaysISO(a, 13) < b;
+    const futureCut = end > today || start > today;
+    if (!n) el.rangeNote.textContent = "Nothing to mark. Future days stay blank.";
+    else if (stoppedEarly) el.rangeNote.textContent = `Marked ${n} days. Only 14 days can be marked at a time.`;
+    else if (futureCut) el.rangeNote.textContent = `Marked ${n} day${n === 1 ? "" : "s"} through today.`;
+    else el.rangeNote.textContent = `Marked ${n} day${n === 1 ? "" : "s"}.`;
     await persistVault();
     renderAll();
   });
@@ -342,6 +352,10 @@ function wireUI() {
       const obj = JSON.parse(text);
       vault = ensureVault(obj, vault.profile.tz);
       ensureSexDefaults(vault);
+      if (vault.profile.theme) {
+        applyTheme(vault.profile.theme);
+        setInputsFromTheme(vault.profile.theme, el);
+      }
       undo = null;
       await persistVault();
       renderAll();
@@ -373,7 +387,7 @@ function wireUI() {
     showLockOverlay(true);
   });
 
-  el.panicBtn.addEventListener("click", () => setPanic(true));
+  el.panicBtn.addEventListener("click", () => setPanic(!panic));
   el.usePanicBtn.addEventListener("click", () => setPanic(true));
 
   el.unlockBtn.addEventListener("click", async () => {
@@ -504,15 +518,14 @@ async function toggleSymptom(id) {
 
 function setPanic(state) {
   panic = !!state;
+  document.body.classList.toggle("panicMode", panic);
   if (panic) {
-    document.body.style.filter = "grayscale(1)";
     el.appTitle.textContent = "Calendar";
     el.appSub.textContent = "Schedule overview.";
     closeSexLog();
     showLockOverlay(false);
     el.onboardOverlay.classList.add("hidden");
   } else {
-    document.body.style.filter = "";
     el.appTitle.textContent = "Midnight";
     el.appSub.textContent = "Your cycle, private on this device.";
   }
@@ -556,13 +569,21 @@ function refreshSexList() {
   for (const it of items) {
     const div = document.createElement("div");
     div.className = "listItem";
-    div.innerHTML = `
-      <div class="listItemTop">
-        <div class="listItemTitle">${it.date}</div>
-        <div class="pill">${it.protection}</div>
-      </div>
-      <div class="listItemSub">${escapeHtml(it.notes || "")}</div>
-    `;
+    const top = document.createElement("div");
+    top.className = "listItemTop";
+    const title = document.createElement("div");
+    title.className = "listItemTitle";
+    title.textContent = it.date;
+    const pill = document.createElement("div");
+    pill.className = "pill";
+    pill.textContent = it.protection || "";
+    top.appendChild(title);
+    top.appendChild(pill);
+    const sub = document.createElement("div");
+    sub.className = "listItemSub";
+    sub.textContent = it.notes || "";
+    div.appendChild(top);
+    div.appendChild(sub);
     div.addEventListener("click", () => {
       el.sexDate.value = it.date;
       loadSexEntryIntoForm();
@@ -581,24 +602,22 @@ function renderAll() {
 
   const showOnboard = !panic && !vault.profile.onboarded && !(hasPasscode() && isLocked());
   el.onboardOverlay.classList.toggle("hidden", !showOnboard);
+  syncControls();
 
   if (panic) {
-    el.headline.textContent = today;
-    el.daySentence.textContent = "";
-    el.trackLine.textContent = "";
-    el.lateNote.textContent = "";
-    el.wideNote.textContent = "";
-    el.insightLine.textContent = "";
-    el.fertileLine.textContent = "";
-    el.flowRow.innerHTML = "";
-    el.symptomChips.innerHTML = "";
-    el.timeline.innerHTML = "";
-    el.calendar.innerHTML = "";
-    el.summaryText.textContent = "";
-    el.gates.innerHTML = "";
-    el.sexLogBtn.classList.add("hidden");
     el.notifyBanner.classList.add("hidden");
-    el.statusPill.textContent = "Panic mode";
+    el.sexLogBtn.classList.add("hidden");
+    el.calLabel.textContent = monthLabel(monthAnchor);
+    renderCalendar(el.calendar, {
+      vault,
+      model: null,
+      anchorISO: monthAnchor,
+      selectedISO: today,
+      today,
+      plain: true,
+      onSelect: () => {}
+    });
+    el.statusPill.textContent = "Schedule";
     return;
   }
 
@@ -643,6 +662,19 @@ function renderAll() {
   renderGates(model);
 
   maybeShowFallbackBanner(model, today, tz);
+}
+
+function syncControls() {
+  const profile = vault?.profile || {};
+  setIfIdle(el.situation, profile.situation || "cycling");
+  setIfIdle(el.goal, profile.goal || "bleed");
+  setIfIdle(el.tz, profile.tz || CONFIG.defaults.tz);
+  setIfIdle(el.notifyTime, profile.notifyTime || CONFIG.defaults.notifyTime);
+}
+
+function setIfIdle(node, value) {
+  if (!node || document.activeElement === node) return;
+  if (node.value !== value) node.value = value;
 }
 
 function renderFlow(current) {
@@ -753,21 +785,25 @@ async function waitForUnlock() {
         el.lockMsg.textContent = "Wrong passcode.";
         return;
       }
+      el.unlockBtn.removeEventListener("click", handler);
       sessionPasscode = code;
       el.passInput.value = "";
       showLockOverlay(false);
       el.lockMsg.textContent = "";
       resolve(res.vault || {});
     };
-    el.unlockBtn.onclick = handler;
+    el.unlockBtn.addEventListener("click", handler);
   });
 }
 
 function withTimeout(promise, ms) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), ms))
-  ]);
+  const pending = Promise.resolve(promise);
+  pending.catch(() => {});
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error("timeout")), ms);
+  });
+  return Promise.race([pending, timeout]).finally(() => clearTimeout(timer));
 }
 
 function escapeHtml(s) {
@@ -800,7 +836,11 @@ async function ensurePushTokenSoft() {
   }
 
   try {
-    const token = await fb.getToken(fb.messaging, { vapidKey: CONFIG.vapidKey });
+    const swReg = await navigator.serviceWorker.ready;
+    const token = await fb.getToken(fb.messaging, {
+      vapidKey: CONFIG.vapidKey,
+      serviceWorkerRegistration: swReg
+    });
     if (!token) return;
     const ref = fb.doc(fb.db, "users", fb.uid);
     await fb.setDoc(ref, {

@@ -303,6 +303,9 @@ textarea.input{resize:vertical}
 .settings summary{cursor:pointer}
 .settings summary::-webkit-details-marker{color:var(--muted)}
 
+body.panicMode .isPrivate{display:none !important}
+body.panicMode{filter:grayscale(1)}
+
 @media (max-width: 860px){
   .hero,.grid2{grid-template-columns:1fr}
   .formRow{grid-template-columns:1fr;gap:6px}

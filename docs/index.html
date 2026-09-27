@@ -27,7 +27,7 @@
     </header>
 
     <main class="main">
-      <section class="card hero">
+      <section class="card hero isPrivate">
         <div class="heroLeft">
           <div id="logDayLabel" class="kpiLabel">Today</div>
           <h1 id="headline" class="headline">Loading…</h1>
@@ -98,7 +98,7 @@
           <button id="calNext" class="btn ghost sm" type="button">Next</button>
         </div>
         <div id="calendar" class="calendar"></div>
-        <div class="rangeRow">
+        <div class="rangeRow isPrivate">
           <div class="label">Mark period days</div>
           <input id="rangeStart" class="input" type="date" />
           <input id="rangeEnd" class="input" type="date" />
@@ -107,7 +107,7 @@
         <div id="rangeNote" class="tiny muted"></div>
       </section>
 
-      <section class="card">
+      <section class="card isPrivate">
         <div class="cardTitleRow">
           <div class="cardTitle">Summary</div>
           <button id="copySummary" class="btn ghost sm" type="button">Copy</button>
@@ -116,12 +116,12 @@
         <div id="copyNote" class="tiny muted"></div>
       </section>
 
-      <section class="card">
+      <section class="card isPrivate">
         <div class="cardTitle">What Midnight knows</div>
         <div id="gates" class="skillTree"></div>
       </section>
 
-      <details id="settingsCard" class="card settings">
+      <details id="settingsCard" class="card settings isPrivate">
         <summary class="cardTitle">Settings</summary>
 
         <div class="formRow">
@@ -215,7 +215,7 @@
     </main>
 
     <footer class="footer">
-      <span class="muted tiny">On this device. No account required. Nothing is locked behind a paywall.</span>
+      <span class="muted tiny isPrivate">On this device. No account required. Nothing is locked behind a paywall.</span>
       <span id="statusPill" class="pill">Booting…</span>
     </footer>
   </div>

@@ -1,6 +1,6 @@
 self.addEventListener("install", (e) => {
   e.waitUntil(
-    caches.open("midnight-v3").then((cache) => cache.addAll([
+    caches.open("midnight-v4").then((cache) => cache.addAll([
       "./",
       "./index.html",
       "./styles.css",
@@ -24,7 +24,9 @@ self.addEventListener("install", (e) => {
       "./modules/skilltree.js",
       "./modules/sexLog.js",
       "./modules/lock.js",
-      "./modules/notifyFallback.js"
+      "./modules/notifyFallback.js",
+      "./icon-192.png",
+      "./icon-512.png"
     ]))
   );
   self.skipWaiting();
@@ -33,15 +35,28 @@ self.addEventListener("install", (e) => {
 self.addEventListener("activate", (e) => {
   e.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter((k) => k !== "midnight-v3").map((k) => caches.delete(k)));
+    await Promise.all(keys.filter((k) => k !== "midnight-v4").map((k) => caches.delete(k)));
     await self.clients.claim();
   })());
 });
 
 self.addEventListener("fetch", (e) => {
-  e.respondWith(
-    caches.match(e.request).then((hit) => hit || fetch(e.request).catch(() => hit))
-  );
+  const req = e.request;
+  if (req.method !== "GET") return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;
+  e.respondWith((async () => {
+    const cache = await caches.open("midnight-v4");
+    try {
+      const fresh = await fetch(req);
+      if (fresh && fresh.ok) cache.put(req, fresh.clone());
+      return fresh;
+    } catch {
+      const hit = await cache.match(req) || await caches.match(req);
+      if (hit) return hit;
+      return new Response("Offline", { status: 503, headers: { "Content-Type": "text/plain" } });
+    }
+  })());
 });
 
 // Push handler (if supported by device/browser)

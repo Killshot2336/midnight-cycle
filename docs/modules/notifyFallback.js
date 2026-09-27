@@ -8,12 +8,24 @@ export function shouldShowBanner(tz, notifyTime, opts = {}) {
   const today = todayISO(tz);
   if (meta.fallback.lastShown === today) return false;
 
-  const [hh, mm] = (notifyTime || "18:30").split(":").map((n) => parseInt(n, 10));
-  const now = new Date();
-  const localH = now.getHours();
-  const localM = now.getMinutes();
-  const after = (localH > hh) || (localH === hh && localM >= mm);
-  return after;
+  const [th, tm] = (notifyTime || "18:30").split(":").map((n) => parseInt(n, 10));
+  let hour = 0;
+  let minute = 0;
+  try {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: tz || "America/Chicago",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23"
+    }).formatToParts(new Date());
+    hour = parseInt(parts.find((p) => p.type === "hour")?.value || "0", 10);
+    minute = parseInt(parts.find((p) => p.type === "minute")?.value || "0", 10);
+  } catch {
+    const now = new Date();
+    hour = now.getHours();
+    minute = now.getMinutes();
+  }
+  return hour > th || (hour === th && minute >= tm);
 }
 
 export function markBannerShown(tz) {

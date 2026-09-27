@@ -22,9 +22,9 @@ const SYMPTOM_BACKOFF = {
   bloating: { at: -2, n: 1 },
   breast: { at: -3, n: 1.5 },
   moodLow: { at: -2, n: 1 },
-  moodHigh: { at: -12, n: 0.4 },
+  moodHigh: { at: -1, n: 0 },
   energyLow: { at: -1, n: 1 },
-  energyHigh: { at: -12, n: 0.4 },
+  energyHigh: { at: -1, n: 0 },
   sleepPoor: { at: -2, n: 0.5 },
   stress: { at: -3, n: 0.5 }
 };
@@ -337,16 +337,10 @@ export function buildForecastModel(vault, today) {
 
   if (paused || !last) return model;
 
-  const gapAfter = daysBetweenISO(last.end, today);
-  const open = gapAfter < 2;
   const flowToday = daily[today]?.flow;
-  if (open && flowToday !== "none") {
-    const cd = daysBetweenISO(last.start, today) + 1;
-    const limit = Math.max(last.bleedDays, Math.round(fit.muB) + 1);
-    if (cd >= 1 && cd <= limit) {
-      model.inBleed = true;
-      model.bleedDay = cd;
-    }
+  if (START_FLOW.has(flowToday)) {
+    model.inBleed = true;
+    model.bleedDay = daysBetweenISO(last.start, today) + 1;
   }
 
   const mean = fit.muF + fit.muL;
@@ -401,10 +395,10 @@ export function dayOutlook(model, iso, nudge = 0) {
   let fertile = model.showFertile && draws.length ? fertileHits / denom : 0;
 
   const last = model.episodes?.length ? model.episodes[model.episodes.length - 1] : null;
-  if (last && iso >= last.start) {
+  if (last && model.today && iso >= model.today && iso >= last.start) {
     const idx = daysBetweenISO(last.start, iso);
-    const gap = daysBetweenISO(last.end, iso);
-    if (idx >= 0 && gap < 2) {
+    const expectedLen = Math.max(last.bleedDays, Math.round(model.muB || 5));
+    if (idx >= 0 && idx < expectedLen && model.daily?.[iso]?.flow !== "none") {
       const z = (idx + 0.5 - model.muB) / Math.max(model.sdB, 0.8);
       const pStay = 1 - normalCdf(z);
       bleed = 1 - (1 - bleed) * (1 - clamp(pStay, 0, 0.95));
