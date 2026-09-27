@@ -8,10 +8,36 @@ import {
   predictIntervalDays,
   walkForward,
   headlineFor,
+  formatWeekday,
   daySentence,
   fitEpisodes,
   topSymptom
 } from "./cycleModel.js";
+
+test("a junk day key does not freeze the forecast", { timeout: 2000 }, () => {
+  const episodes = deriveEpisodes({
+    bad: { flow: "medium" },
+    "0000-00-00": { flow: "heavy" },
+    "2026-02-31": { flow: "heavy" },
+    "2026-09-01": { flow: "medium" },
+    "2026-09-02": { flow: "light" }
+  }, "not-a-date");
+  assert.equal(episodes.length, 1);
+  assert.equal(episodes[0].start, "2026-09-01");
+  assert.equal(episodes[0].end, "2026-09-02");
+  assert.equal(episodes[0].bleedDays, 2);
+});
+
+test("an impossible date does not crash the headline", () => {
+  const model = buildForecastModel({
+    daily: { "0000-00-00": { flow: "medium" }, nope: { flow: "heavy" } },
+    profile: {}
+  }, "2026-09-26");
+  assert.equal(model.lastStart, null);
+  assert.equal(headlineFor(model), "Log a period start to see your window.");
+  assert.equal(formatWeekday("nope"), "");
+  assert.equal(formatWeekday("NaN-NaN-NaN"), "");
+});
 
 test("spotting alone does not open a period", () => {
   const episodes = deriveEpisodes({

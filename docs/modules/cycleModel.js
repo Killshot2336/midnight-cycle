@@ -37,19 +37,36 @@ function symptomAt(back) {
   return Math.min(SYMPTOM_TO, Math.max(SYMPTOM_FROM, at));
 }
 
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+function validDay(iso) {
+  if (!ISO_DAY.test(iso || "")) return false;
+  const parsed = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return false;
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  return `${parsed.getFullYear()}-${month}-${day}` === iso;
+}
+
+function nextDay(iso) {
+  if (!validDay(iso)) return null;
+  const next = addDaysISO(iso, 1);
+  return validDay(next) && next > iso ? next : null;
+}
+
 export function deriveEpisodes(daily, throughISO) {
   const map = daily || {};
-  const marked = Object.keys(map).filter((iso) => ANY_FLOW.has(map[iso]?.flow)).sort();
+  const marked = Object.keys(map).filter((iso) => validDay(iso) && ANY_FLOW.has(map[iso]?.flow)).sort();
   if (!marked.length) return [];
 
   let end = marked[marked.length - 1];
-  if (throughISO && throughISO > end) end = throughISO;
+  if (validDay(throughISO) && throughISO > end) end = throughISO;
 
   const episodes = [];
   let cur = null;
   let gap = 0;
 
-  for (let iso = marked[0]; iso <= end; iso = addDaysISO(iso, 1)) {
+  for (let iso = marked[0]; iso && iso <= end; iso = nextDay(iso)) {
     const flow = map[iso]?.flow;
     const any = ANY_FLOW.has(flow);
     if (!cur) {
@@ -297,9 +314,10 @@ export function formatMonthDay(iso) {
 }
 
 function formatParts(iso, options) {
-  if (!iso) return "";
+  if (!validDay(iso)) return "";
   const [y, m, d] = iso.split("-").map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d));
+  if (Number.isNaN(dt.getTime())) return "";
   return new Intl.DateTimeFormat("en-US", { ...options, timeZone: "UTC" }).format(dt).replace(",", "");
 }
 
@@ -431,7 +449,8 @@ export function dayOutlook(model, iso, nudge = 0) {
 }
 
 function bleedStopped(daily, end, iso) {
-  for (let day = addDaysISO(end, 1); day <= iso; day = addDaysISO(day, 1)) {
+  if (!validDay(iso)) return false;
+  for (let day = nextDay(end); day && day <= iso; day = nextDay(day)) {
     if (daily?.[day]?.flow === "none") return true;
   }
   return false;

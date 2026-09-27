@@ -20,6 +20,7 @@ export function shouldShowBanner(tz, notifyTime, opts = {}) {
     }).formatToParts(new Date());
     hour = parseInt(parts.find((p) => p.type === "hour")?.value || "0", 10);
     minute = parseInt(parts.find((p) => p.type === "minute")?.value || "0", 10);
+    if (hour === 24) hour = 0;
   } catch {
     const now = new Date();
     hour = now.getHours();

@@ -183,7 +183,7 @@ async function main() {
   const applied = applyTheme(theme);
   meta.profile = meta.profile || {};
   meta.profile.theme = applied;
-  saveMeta(meta);
+  commitMeta();
 
   setInputsFromTheme(applied, el);
   el.tz.value = vault.profile.tz || CONFIG.defaults.tz;
@@ -263,7 +263,7 @@ function wireUI() {
     vault.profile.theme = t;
     meta.profile = meta.profile || {};
     meta.profile.theme = t;
-    saveMeta(meta);
+    commitMeta();
     await persistVault();
     el.appearanceNote.textContent = "Saved.";
     renderAll();
@@ -960,17 +960,25 @@ function maybeShowFallbackBanner(model, today, tz) {
   if (shouldShowBanner(tz, t, { relevant })) {
     el.bannerText.textContent = model.median === today
       ? "Most likely today."
-      : (model.muB >= 4
-        ? "Most likely tomorrow. Your heavier days are usually the first two."
-        : "Most likely tomorrow.");
+      : "Most likely tomorrow.";
     el.notifyBanner.classList.remove("hidden");
   } else {
     el.notifyBanner.classList.add("hidden");
   }
 }
 
-async function persistVault() {
+function commitMeta() {
+  const stored = loadMeta();
+  meta.profile = { ...(stored.profile || {}), ...(meta.profile || {}) };
+  if (stored.lock) meta.lock = stored.lock;
+  else delete meta.lock;
+  if (stored.fallback) meta.fallback = stored.fallback;
+  else delete meta.fallback;
   saveMeta(meta);
+}
+
+async function persistVault() {
+  commitMeta();
 
   if (hasPasscode()) {
     if (!sessionPasscode) return;
