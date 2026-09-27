@@ -1,4 +1,4 @@
-const CACHE = "midnight-v11";
+const CACHE = "midnight-v12";
 const PRECACHE = [
   "./",
   "./index.html",

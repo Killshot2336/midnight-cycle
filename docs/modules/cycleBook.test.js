@@ -4,6 +4,7 @@ import { addDaysISO } from "./guard.js";
 import {
   heavyDayPattern,
   heavyDaySentence,
+  periodPages,
   searchNotes,
   parseStartDates,
   shareSentence,
@@ -30,6 +31,33 @@ test("heavier days are named only when they agree", () => {
   assert.equal(heavyDaySentence(pattern), "Your heavier days are usually day 2.");
 });
 
+test("ordinary medium starts are not called heavier days", () => {
+  const daily = {};
+  let start = "2026-01-01";
+  for (let i = 0; i < 4; i++) {
+    putBleed(daily, start, ["medium", "light"]);
+    start = addDaysISO(start, 28);
+  }
+  assert.equal(heavyDayPattern({ daily, profile: {} }, "2026-05-01"), null);
+});
+
+test("spotting after a bleed is not counted as a long period", () => {
+  const daily = {};
+  putBleed(daily, "2026-04-01", ["medium", "spotting", "spotting", "spotting", "spotting", "spotting", "spotting", "spotting"]);
+  const page = periodPages({ daily, profile: {} }, "2026-05-01")[0];
+  assert.equal(page.periodDays, 1);
+  assert.equal(page.spotDays, 7);
+  assert.equal(mentionSentence(page), "");
+});
+
+test("a five-day gap is not shown as a cycle", () => {
+  const daily = {};
+  putBleed(daily, "2026-08-01", ["medium"]);
+  putBleed(daily, "2026-08-06", ["medium"]);
+  const page = periodPages({ daily, profile: {} }, "2026-09-01").find((item) => item.start === "2026-08-01");
+  assert.equal(page.cycleLength, null);
+});
+
 test("mixed heavy days stay quiet", () => {
   const daily = {};
   putBleed(daily, "2026-01-01", ["heavy", "light"]);
@@ -48,6 +76,7 @@ test("notes search and pasted starts stay literal", () => {
   assert.equal(hits.length, 1);
   assert.equal(hits[0].iso, "2026-03-02");
   assert.deepEqual(parseStartDates("2026-01-01 nope, 2026-02-02 2026-01-01"), ["2026-01-01", "2026-02-02"]);
+  assert.deepEqual(parseStartDates("2026-02-31 2026-03-01"), ["2026-03-01"]);
 });
 
 test("a share note is only the window", () => {

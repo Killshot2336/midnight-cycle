@@ -76,6 +76,7 @@ export function setDaily(vault, iso, entry) {
 
 export function addPeriodStart(vault, iso) {
   if (!iso) return vault;
+  if (START_FLOW.has(vault.daily?.[iso]?.flow)) return vault;
   updateDay(vault, iso, { flow: "medium" });
   return vault;
 }

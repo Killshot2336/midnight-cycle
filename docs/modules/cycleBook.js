@@ -4,6 +4,7 @@ import {
   walkForward,
   bleedFinished,
   START_FLOW,
+  validDay,
   formatMonthDay,
   formatWeekday
 } from "./cycleModel.js";
@@ -35,7 +36,7 @@ export const MUCUS = [
 
 function daysOf(daily, start, end) {
   const days = [];
-  for (let iso = start, guard = 0; iso && iso <= end && guard < 16; iso = addDaysISO(iso, 1), guard += 1) {
+  for (let iso = start, guard = 0; iso && iso <= end && guard < 90; iso = addDaysISO(iso, 1), guard += 1) {
     const row = daily[iso] || {};
     days.push({
       iso,
@@ -61,14 +62,18 @@ export function periodPages(vault, today) {
   return episodes.map((episode, index) => {
     const next = episodes[index + 1];
     const window = byStart.get(episode.start) || null;
+    const days = daysOf(daily, episode.start, episode.end);
+    const gap = next ? daysBetweenISO(episode.start, next.start) : null;
     return {
       start: episode.start,
       end: episode.end,
       bleedDays: episode.bleedDays,
-      cycleLength: next ? daysBetweenISO(episode.start, next.start) : null,
+      periodDays: days.filter((day) => START_FLOW.has(day.flow)).length,
+      spotDays: days.filter((day) => day.flow === "spotting").length,
+      cycleLength: gap != null && gap >= 15 && gap <= 90 ? gap : null,
       finished: bleedFinished(daily, episode, today),
       window,
-      days: daysOf(daily, episode.start, episode.end)
+      days
     };
   }).reverse();
 }
@@ -86,7 +91,6 @@ export function heavyDayPattern(vault, today) {
         mark = index;
         break;
       }
-      if (day.flow === "medium" && mark == null) mark = index;
     }
     if (mark == null) continue;
     noted += 1;
@@ -109,9 +113,16 @@ export function heavyDaySentence(pattern) {
   return `Your heavier days are usually day ${pattern.day}.`;
 }
 
+function countedBleed(page) {
+  if (Array.isArray(page?.days) && page.days.some((day) => day?.flow)) {
+    return page.days.filter((day) => START_FLOW.has(day.flow)).length;
+  }
+  return page?.periodDays ?? page?.bleedDays ?? 0;
+}
+
 export function mentionSentence(page) {
   if (!page) return "";
-  const long = page.bleedDays > 7;
+  const long = countedBleed(page) > 7;
   const hard = (page.days || []).some((day) => day.soaked || (typeof day.pain === "number" && day.pain >= 7));
   if (long || hard) return "This one is worth mentioning at a visit.";
   return "";
@@ -152,7 +163,7 @@ export function visitText(vault, from, to, today) {
   else {
     const cycles = pages.map((page) => page.cycleLength).filter((n) => n != null);
     if (cycles.length) lines.push(`Cycle lengths (days): ${cycles.join(", ")}.`);
-    lines.push(`Bleeding lengths (days): ${pages.map((page) => page.bleedDays).join(", ")}.`);
+    lines.push(`Bleeding lengths (days): ${pages.map((page) => page.periodDays ?? page.bleedDays).join(", ")}.`);
     const mentions = pages.filter((page) => mentionSentence(page)).length;
     if (mentions) {
       lines.push(`${mentions} ${mentions === 1 ? "period in this range is" : "periods in this range are"} worth mentioning at a visit.`);
@@ -168,7 +179,7 @@ export function visitText(vault, from, to, today) {
 
 export function parseStartDates(text) {
   const found = String(text || "").match(/\d{4}-\d{2}-\d{2}/g) || [];
-  return [...new Set(found)];
+  return [...new Set(found)].filter((iso) => validDay(iso));
 }
 
 export function visibleSymptoms(vault) {

@@ -998,6 +998,7 @@ function renderAll() {
 
   paintSupplies(model, today);
   renderCycleBook(today);
+  if (el.noteSearch?.value.trim().length >= 2) renderNoteHits();
   renderSymptomEditor();
   if (sheetISO) renderDaySheet();
   if (openPeriodStart) renderPeriod();
@@ -1105,8 +1106,14 @@ function renderCycleBook(today) {
     btn.dataset.period = page.start;
     const title = document.createElement("div");
     title.className = "listItemTitle";
+    const bleed = page.periodDays ?? page.bleedDays;
+    const spot = page.spotDays || 0;
+    let span = bleed
+      ? `${bleed} bleeding day${bleed === 1 ? "" : "s"}`
+      : `${spot} spotting day${spot === 1 ? "" : "s"}`;
+    if (bleed && spot) span += ` · ${spot} spotting`;
     const cycle = page.cycleLength ? ` · ${page.cycleLength}-day cycle` : "";
-    title.textContent = `${formatWeekday(page.start)} · ${page.bleedDays} bleeding day${page.bleedDays === 1 ? "" : "s"}${cycle}`;
+    title.textContent = `${formatWeekday(page.start)} · ${span}${cycle}`;
     const sub = document.createElement("div");
     sub.className = "listItemSub";
     sub.textContent = [windowSentence(page), mentionSentence(page)].filter(Boolean).join(" ");
