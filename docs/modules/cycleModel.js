@@ -39,7 +39,7 @@ function symptomAt(back) {
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
-function validDay(iso) {
+export function validDay(iso) {
   if (!ISO_DAY.test(iso || "")) return false;
   const parsed = new Date(`${iso}T00:00:00`);
   if (Number.isNaN(parsed.getTime())) return false;

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ensureVault, markPeriodRange } from "./cycleEngine.js";
+import { addPeriodStart, ensureVault, markPeriodRange } from "./cycleEngine.js";
 
 test("version 2 vaults migrate without inventing bleed days", () => {
   const vault = ensureVault({
@@ -48,4 +48,16 @@ test("marking a range keeps days that already have a bleed flow", () => {
   assert.equal(vault.daily["2024-03-01"].flow, "heavy");
   assert.equal(vault.daily["2024-03-02"].flow, "medium");
   assert.equal(vault.daily["2024-03-03"].flow, "medium");
+});
+
+test("a pasted start keeps a bleed that is already logged", () => {
+  const vault = ensureVault({
+    version: 3,
+    profile: { onboarded: true, periodsMigrated: true },
+    daily: { "2026-09-01": { flow: "heavy" } }
+  }, "America/Chicago");
+  addPeriodStart(vault, "2026-09-01");
+  addPeriodStart(vault, "2026-09-20");
+  assert.equal(vault.daily["2026-09-01"].flow, "heavy");
+  assert.equal(vault.daily["2026-09-20"].flow, "medium");
 });
