@@ -145,6 +145,10 @@ let selectedISO = null;
 let monthAnchor = null;
 const UNDO_LIMIT = 20;
 let undoStack = [];
+let arrived = false;
+let lastHeadline = "";
+let monthMotion = "";
+let decorKey = "";
 let fillingMore = false;
 
 main().catch((e) => {
@@ -332,11 +336,13 @@ function wireUI() {
   el.calPrev.addEventListener("click", () => {
     const tz = vault.profile.tz || CONFIG.defaults.tz;
     monthAnchor = shiftMonth(monthAnchor || `${todayISO(tz).slice(0, 7)}-01`, -1);
+    monthMotion = "prev";
     renderAll();
   });
   el.calNext.addEventListener("click", () => {
     const tz = vault.profile.tz || CONFIG.defaults.tz;
     monthAnchor = shiftMonth(monthAnchor || `${todayISO(tz).slice(0, 7)}-01`, 1);
+    monthMotion = "next";
     renderAll();
   });
 
@@ -551,10 +557,16 @@ async function logFlow(flow) {
   if (future) return;
   const prev = updateDay(vault, iso, { flow });
   pushUndo({ iso, prev });
-  const shine = currentTheme().shimmer && (flow === "light" || flow === "medium" || flow === "heavy");
+  const shine = (flow === "light" || flow === "medium" || flow === "heavy");
   await persistVault();
   renderAll();
-  if (shine) {
+  const cell = el.calendar.querySelector(`[data-iso="${iso}"]`);
+  if (cell && shine) {
+    cell.classList.remove("pulseRing", "pulse-light", "pulse-medium", "pulse-heavy");
+    void cell.offsetWidth;
+    cell.classList.add("pulseRing", `pulse-${flow}`);
+  }
+  if (shine && currentTheme().shimmer) {
     document.body.classList.add("shimmer");
     setTimeout(() => document.body.classList.remove("shimmer"), 700);
   }
@@ -687,7 +699,15 @@ function renderAll() {
   el.logDayLabel.textContent = selected === today
     ? "Today"
     : (future ? `${formatWeekday(selected)} is still a forecast` : `Logging ${formatWeekday(selected)}`);
-  el.headline.textContent = headlineFor(model);
+  const nextHeadline = headlineFor(model);
+  const headlineChanged = lastHeadline !== "" && nextHeadline !== lastHeadline;
+  el.headline.textContent = nextHeadline;
+  if (headlineChanged) {
+    el.headline.classList.remove("settling");
+    void el.headline.offsetWidth;
+    el.headline.classList.add("settling");
+  }
+  lastHeadline = nextHeadline;
   el.daySentence.textContent = daySentence(model);
   el.trackLine.textContent = trackSentence(model.track);
   el.lateNote.textContent = lateSentence(model);
@@ -723,6 +743,7 @@ function renderAll() {
   renderGates(model);
 
   maybeShowFallbackBanner(model, today, tz);
+  cueMotion();
 }
 
 function syncControls() {
@@ -794,13 +815,50 @@ function fillCharmPicker(container, choice) {
   }
 }
 
+function cueMotion() {
+  if (!el.calendar || panic) return;
+  if (monthMotion) {
+    const cls = monthMotion === "next" ? "shift-next" : "shift-prev";
+    monthMotion = "";
+    el.calendar.classList.remove("shift-next", "shift-prev");
+    void el.calendar.offsetWidth;
+    el.calendar.classList.add(cls);
+  }
+  if (!arrived && vault?.profile?.onboarded) {
+    arrived = true;
+    document.body.classList.add("arrive");
+    el.calendar.classList.add("drawRing");
+    setTimeout(() => {
+      document.body.classList.remove("arrive");
+      el.calendar?.classList.remove("drawRing");
+    }, 1300);
+  }
+}
+
 function paintDecor(theme) {
   const t = theme || currentTheme();
   if (el.personalLine) {
-    el.personalLine.textContent = t.phrase || "";
-    el.personalLine.classList.toggle("hidden", !t.phrase);
+    const prev = el.personalLine.textContent || "";
+    const next = t.phrase || "";
+    el.personalLine.textContent = next;
+    el.personalLine.classList.toggle("hidden", !next);
+    if (!prev && next) {
+      el.personalLine.classList.remove("lineIn");
+      void el.personalLine.offsetWidth;
+      el.personalLine.classList.add("lineIn");
+    }
   }
   if (!el.charmLayer) return;
+  const key = `${t.charm}|${t.charm2}|${t.charmCorner}`;
+  el.charmLayer.classList.toggle("corner-tl", t.charmCorner === "tl");
+  el.charmLayer.classList.toggle("corner-tr", t.charmCorner === "tr");
+  el.charmLayer.classList.toggle("corner-bl", t.charmCorner === "bl");
+  el.charmLayer.classList.toggle("corner-br", t.charmCorner === "br");
+  if (key === decorKey) {
+    el.charmLayer.classList.toggle("hidden", el.charmLayer.childElementCount === 0);
+    return;
+  }
+  decorKey = key;
   el.charmLayer.className = `charmLayer isCute corner-${t.charmCorner}`;
   el.charmLayer.replaceChildren();
   for (const id of [t.charm, t.charm2]) {
@@ -808,6 +866,7 @@ function paintDecor(theme) {
     if (!svg) continue;
     const span = document.createElement("span");
     span.className = "charm";
+    span.dataset.charm = id;
     span.innerHTML = svg;
     el.charmLayer.appendChild(span);
   }

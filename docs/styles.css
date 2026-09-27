@@ -419,7 +419,8 @@ textarea.input{resize:vertical}
 body.panicMode .isPrivate,
 body.panicMode .isCute{display:none !important}
 body.panicMode{filter:grayscale(1);background:var(--bg) !important}
-body.panicMode::before{display:none !important}
+body.panicMode::before,
+body.panicMode .shell::after{display:none !important}
 
 @media (max-width: 860px){
   .hero,.grid2,.colorGrid{grid-template-columns:1fr}
@@ -441,4 +442,152 @@ body.panicMode::before{display:none !important}
   .skillTree{grid-template-columns:1fr}
   .footer{flex-direction:column;align-items:flex-start;gap:8px}
   .corner-tr,.corner-tl{top:10px}
+}
+
+@property --bg { syntax: "<color>"; inherits: true; initial-value: #140c14; }
+@property --card { syntax: "<color>"; inherits: true; initial-value: #24141f; }
+@property --text { syntax: "<color>"; inherits: true; initial-value: #f6e9ef; }
+@property --muted { syntax: "<color>"; inherits: true; initial-value: #cbb4c0; }
+@property --accent { syntax: "<color>"; inherits: true; initial-value: #e7a0b6; }
+@property --mark { syntax: "<color>"; inherits: true; initial-value: #e4c58a; }
+@property --gold { syntax: "<color>"; inherits: true; initial-value: #e4c58a; }
+@property --flow-none { syntax: "<color>"; inherits: true; initial-value: #6e6470; }
+@property --flow-spot { syntax: "<color>"; inherits: true; initial-value: #e4c58a; }
+@property --flow-light { syntax: "<color>"; inherits: true; initial-value: #f0c2cf; }
+@property --flow-medium { syntax: "<color>"; inherits: true; initial-value: #d46a8a; }
+@property --flow-heavy { syntax: "<color>"; inherits: true; initial-value: #8e2f45; }
+
+body{
+  transition:
+    --bg .5s ease, --card .5s ease, --text .5s ease, --muted .5s ease,
+    --accent .5s ease, --mark .5s ease, --gold .5s ease,
+    --flow-none .5s ease, --flow-spot .5s ease, --flow-light .5s ease,
+    --flow-medium .5s ease, --flow-heavy .5s ease,
+    color .5s ease;
+}
+.card,.topbar,.headline,.personalLine,.calLabel{
+  transition: background-color .5s ease, color .5s ease, border-color .5s ease;
+}
+.flowBtn,.chip,.lookPick,.choicePick,.charmPick,.btn{
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+.headline{position:relative}
+.headline::after{
+  content:"";
+  display:block;
+  width:72px;
+  height:1px;
+  margin-top:12px;
+  background:linear-gradient(90deg, var(--gold), transparent);
+  transform:scaleX(1);
+  transform-origin:left center;
+}
+body.arrive .headline{animation:rise .42s cubic-bezier(.22,.8,.3,1) both}
+body.arrive .headline::after{animation:drawLine .55s cubic-bezier(.22,.8,.3,1) .12s both}
+.headline.settling{animation:rise .4s cubic-bezier(.22,.8,.3,1)}
+body.arrive .heroLeft .lead,
+body.arrive .flowRow,
+body.arrive .chips{animation:rise .42s cubic-bezier(.22,.8,.3,1) .1s both}
+body.arrive .charmLayer{animation:rise .48s cubic-bezier(.22,.8,.3,1) .22s both}
+.personalLine.lineIn{animation:rise .35s ease}
+
+.charm{animation:drift 7s ease-in-out infinite}
+.charm:nth-child(2){animation-delay:-2.6s}
+.charm[data-charm="bow"],
+.charm[data-charm="heart"],
+.charm[data-charm="flower"]{animation-name:driftTilt}
+
+body.pattern-stars::before{animation:twinkle 5.6s ease-in-out infinite}
+body.pattern-stars .shell::after{
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:0;
+  pointer-events:none;
+  background-image:
+    radial-gradient(1.3px 1.3px at 60px 110px, color-mix(in srgb, var(--gold) 85%, white) 50%, transparent 52%),
+    radial-gradient(1px 1px at 150px 40px, color-mix(in srgb, var(--text) 75%, transparent) 50%, transparent 52%);
+  background-size:220px 180px;
+  animation:twinkle 7.4s ease-in-out -2.8s infinite;
+}
+
+body.marks-wash .calExpected,
+body.marks-wash .calFertile{animation:breathe 8s ease-in-out infinite}
+.calendar.shift-next{animation:monthNext .42s cubic-bezier(.22,.8,.3,1)}
+.calendar.shift-prev{animation:monthPrev .42s cubic-bezier(.22,.8,.3,1)}
+.calendar.drawRing .calToday,
+.calendar.shift-next .calToday,
+.calendar.shift-prev .calToday{animation:ringIn .55s cubic-bezier(.22,.8,.3,1)}
+
+.calCell.pulseRing::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius:inherit;
+  border:1.5px solid var(--pulse, var(--flow-medium));
+  pointer-events:none;
+  animation:bloom .62s ease forwards;
+}
+.calCell.pulse-light{--pulse:var(--flow-light)}
+.calCell.pulse-medium{--pulse:var(--flow-medium)}
+.calCell.pulse-heavy{--pulse:var(--flow-heavy)}
+
+@keyframes rise{
+  from{opacity:0;transform:translateY(8px)}
+  to{opacity:1;transform:none}
+}
+@keyframes drawLine{
+  from{transform:scaleX(0)}
+  to{transform:scaleX(1)}
+}
+@keyframes drift{
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-4px)}
+}
+@keyframes driftTilt{
+  0%,100%{transform:translateY(0) rotate(0deg)}
+  50%{transform:translateY(-3px) rotate(-3deg)}
+}
+@keyframes twinkle{
+  0%,100%{opacity:.28}
+  50%{opacity:.72}
+}
+@keyframes breathe{
+  0%,100%{background-color:color-mix(in srgb, var(--mark) 10%, transparent)}
+  50%{background-color:color-mix(in srgb, var(--mark) 24%, transparent)}
+}
+@keyframes monthNext{
+  from{opacity:.4;transform:translateX(16px)}
+  to{opacity:1;transform:none}
+}
+@keyframes monthPrev{
+  from{opacity:.4;transform:translateX(-16px)}
+  to{opacity:1;transform:none}
+}
+@keyframes ringIn{
+  from{opacity:0;transform:scale(.9)}
+  to{opacity:1;transform:none}
+}
+@keyframes bloom{
+  from{opacity:.85;transform:scale(.7)}
+  to{opacity:0;transform:scale(1.14)}
+}
+
+body.panicMode,
+body.panicMode::before,
+body.panicMode .shell::after,
+body.panicMode .charm,
+body.panicMode .calExpected,
+body.panicMode .calFertile,
+body.panicMode .headline,
+body.panicMode .calendar{
+  animation:none !important;
+}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{
+    animation:none !important;
+    transition:none !important;
+  }
 }
