@@ -7,7 +7,10 @@ import {
   dayOutlook,
   predictIntervalDays,
   walkForward,
-  headlineFor
+  headlineFor,
+  daySentence,
+  fitEpisodes,
+  topSymptom
 } from "./cycleModel.js";
 
 test("spotting alone does not open a period", () => {
@@ -145,4 +148,50 @@ test("walk-forward error matches a hand-computed 30-day cycle", () => {
   assert.equal(rows[0].actual, "2024-03-01");
   assert.equal(rows[0].error, 1);
   assert.equal(rows[0].covered, true);
+});
+
+test("hormonal in-bleed headline names the next expected bleed", () => {
+  const today = "2026-09-26";
+  const model = buildForecastModel({
+    daily: { [today]: { flow: "medium" } },
+    profile: { situation: "hormonal", goal: "bleed" }
+  }, today);
+  const line = headlineFor(model);
+  assert.match(line, /Bleeding now, day 1/);
+  assert.match(line, /Next expected bleed most likely/);
+  assert.doesNotMatch(line, /Next period expected/);
+});
+
+test("pregnancy mode does not count a cycle day", () => {
+  const model = buildForecastModel({
+    daily: { "2026-08-01": { flow: "medium" } },
+    profile: { situation: "pregnancy", goal: "bleed" }
+  }, "2026-09-26");
+  assert.equal(model.paused, true);
+  assert.equal(daySentence(model), "Forecasts stay paused while pregnancy mode is on.");
+  assert.match(headlineFor(model), /paused/);
+});
+
+test("a logged none finishes the bleed length without waiting for a second empty day", () => {
+  const daily = {
+    "2024-06-01": { flow: "medium" },
+    "2024-06-02": { flow: "medium" },
+    "2024-06-03": { flow: "none" }
+  };
+  const episodes = deriveEpisodes(daily, "2024-06-03");
+  const fit = fitEpisodes(episodes, daily, "cycling", "2024-06-03");
+  assert.ok(fit.muB < 4.5);
+  assert.ok(fit.muB > 3.5);
+});
+
+test("high energy two weeks before a period can be learned", () => {
+  const starts = ["2024-01-01", "2024-01-29", "2024-02-26", "2024-03-25"];
+  const daily = {};
+  for (const start of starts) daily[start] = { flow: "medium" };
+  for (const start of starts.slice(1)) {
+    daily[addDaysISO(start, -14)] = { symptoms: ["energyHigh"] };
+  }
+  const top = topSymptom({ daily });
+  assert.equal(top?.id, "energyHigh");
+  assert.equal(top?.offset, -14);
 });

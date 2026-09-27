@@ -30,7 +30,12 @@ export function setSalt(salt) {
   saveMeta(meta);
 }
 
+export function validPasscode(code) {
+  return /^\d{4,8}$/.test(String(code || ""));
+}
+
 export async function setPasscode(passcode, vaultObj) {
+  if (!validPasscode(passcode)) throw new Error("Passcode must be 4–8 digits");
   const meta = loadMeta();
   meta.lock = meta.lock || {};
   meta.lock.enabled = true;

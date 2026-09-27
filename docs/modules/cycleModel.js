@@ -16,18 +16,26 @@ const SYMPTOM_IDS = [
   "sleepPoor", "stress"
 ];
 
+const SYMPTOM_FROM = -16;
+const SYMPTOM_TO = 3;
+
 const SYMPTOM_BACKOFF = {
   cramps: { at: -1, n: 2 },
   headache: { at: -1, n: 1 },
   bloating: { at: -2, n: 1 },
   breast: { at: -3, n: 1.5 },
   moodLow: { at: -2, n: 1 },
-  moodHigh: { at: -1, n: 0 },
+  moodHigh: { at: -14, n: 0.4 },
   energyLow: { at: -1, n: 1 },
-  energyHigh: { at: -1, n: 0 },
+  energyHigh: { at: -14, n: 0.8 },
   sleepPoor: { at: -2, n: 0.5 },
   stress: { at: -3, n: 0.5 }
 };
+
+function symptomAt(back) {
+  const at = Number.isFinite(back?.at) ? back.at : -1;
+  return Math.min(SYMPTOM_TO, Math.max(SYMPTOM_FROM, at));
+}
 
 export function deriveEpisodes(daily, throughISO) {
   const map = daily || {};
@@ -167,7 +175,7 @@ export function fitEpisodes(episodes, daily, situation, today = null) {
 
   const bleedValues = (episodes || []).filter((e, i, arr) => {
     if (!today || i < arr.length - 1) return true;
-    return daysBetweenISO(e.end, today) >= 2;
+    return bleedFinished(daily, e, today);
   }).map((e) => e.bleedDays);
   const bleed = fitSeries(bleedValues, PRIOR.bleed, wide);
 
@@ -429,6 +437,13 @@ function bleedStopped(daily, end, iso) {
   return false;
 }
 
+export function bleedFinished(daily, episode, today) {
+  if (!episode?.end) return false;
+  if (!today) return true;
+  if (daysBetweenISO(episode.end, today) >= 2) return true;
+  return bleedStopped(daily, episode.end, today);
+}
+
 function normalCdf(z) {
   const t = 1 / (1 + 0.2316419 * Math.abs(z));
   const d = 0.3989422804 * Math.exp(-z * z / 2);
@@ -444,23 +459,22 @@ export function symptomTiming(vault) {
 
   for (const id of SYMPTOM_IDS) {
     const back = SYMPTOM_BACKOFF[id] || { at: -1, n: 0 };
+    const at = symptomAt(back);
     const bins = {};
     const raw = {};
-    for (let o = -10; o <= 2; o++) {
-      bins[o] = o === back.at ? back.n : back.n * 0.12;
+    for (let o = SYMPTOM_FROM; o <= SYMPTOM_TO; o++) {
+      bins[o] = o === at ? back.n : back.n * 0.12;
       raw[o] = 0;
     }
     let cyclesSeen = 0;
     let cyclesWith = 0;
-    const cycleHits = [];
 
     for (let i = 0; i < recent.length - 1; i++) {
       const next = recent[i + 1].start;
-      const from = addDaysISO(next, -10);
-      const to = addDaysISO(next, 2);
+      const from = addDaysISO(next, SYMPTOM_FROM);
+      const to = addDaysISO(next, SYMPTOM_TO);
       cyclesSeen += 1;
       let hit = false;
-      let near = false;
       for (let iso = from; iso <= to; iso = addDaysISO(iso, 1)) {
         const list = daily[iso]?.symptoms || [];
         if (!list.includes(id)) continue;
@@ -471,12 +485,11 @@ export function symptomTiming(vault) {
         hit = true;
       }
       if (hit) cyclesWith += 1;
-      cycleHits.push({ hit, near });
     }
 
-    let offset = back.at;
+    let offset = at;
     let best = -1;
-    for (let o = -10; o <= 2; o++) {
+    for (let o = SYMPTOM_FROM; o <= SYMPTOM_TO; o++) {
       if (bins[o] > best) {
         best = bins[o];
         offset = o;
@@ -487,8 +500,8 @@ export function symptomTiming(vault) {
     let cyclesNear = 0;
     for (let i = 0; i < recent.length - 1; i++) {
       const next = recent[i + 1].start;
-      const from = addDaysISO(next, -10);
-      const to = addDaysISO(next, 2);
+      const from = addDaysISO(next, SYMPTOM_FROM);
+      const to = addDaysISO(next, SYMPTOM_TO);
       let near = false;
       for (let iso = from; iso <= to; iso = addDaysISO(iso, 1)) {
         const list = daily[iso]?.symptoms || [];
@@ -552,6 +565,7 @@ export function trackSentence(track) {
 }
 
 export function daySentence(model) {
+  if (model?.paused) return "Forecasts stay paused while pregnancy mode is on.";
   if (!model?.lastStart || !model.today) return "Log a period start to see your window.";
   const cd = daysBetweenISO(model.lastStart, model.today) + 1;
   const lens = (model.cycleLengths || []).slice(-5);
@@ -569,10 +583,15 @@ export function daySentence(model) {
 export function headlineFor(model) {
   if (!model || model.paused) return "Pregnancy mode is on. Period forecasts are paused.";
   if (!model.lastStart || !model.median) return "Log a period start to see your window.";
+  const when = `${formatWeekday(model.median)}. Likely ${formatMonthDay(model.low)}–${formatMonthDay(model.high)}.`;
+  if (model.inBleed) {
+    const next = model.situation === "hormonal"
+      ? `Next expected bleed most likely ${when}`
+      : `Next period most likely ${when}`;
+    return `Bleeding now, day ${model.bleedDay}. ${next}`;
+  }
   const lead = model.situation === "hormonal" ? "Expected bleed most likely" : "Most likely";
-  const core = `${lead} ${formatWeekday(model.median)}. Likely ${formatMonthDay(model.low)}–${formatMonthDay(model.high)}.`;
-  if (model.inBleed) return `Bleeding now, day ${model.bleedDay}. Next period ${core.charAt(0).toLowerCase()}${core.slice(1)}`;
-  return core;
+  return `${lead} ${when}`;
 }
 
 export function lateSentence(model) {

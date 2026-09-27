@@ -1,4 +1,5 @@
 import admin from "firebase-admin";
+import { withinMinutes } from "./pushWindow.js";
 
 // Secrets required:
 // FIREBASE_PROJECT_ID
@@ -28,21 +29,19 @@ function ymdInTZ(date, tz) {
 }
 
 function hmInTZ(date, tz) {
-  const f = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false });
-  return f.format(date); // HH:MM
+  const f = new Intl.DateTimeFormat("en-GB", {
+    timeZone: tz,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  });
+  const hm = f.format(date);
+  if (hm.startsWith("24:")) return `00:${hm.slice(3)}`;
+  return hm;
 }
 
 function withinWindow(now, tz, targetHHMM, minutes = 10) {
-  const nowHM = hmInTZ(now, tz);
-  // crude window: match exact HH:MM OR within +/- minutes by stepping
-  if (nowHM === targetHHMM) return true;
-
-  // compute numeric minutes for both
-  const [nh, nm] = nowHM.split(":").map(Number);
-  const [th, tm] = targetHHMM.split(":").map(Number);
-  const nowM = nh * 60 + nm;
-  const tarM = th * 60 + tm;
-  return Math.abs(nowM - tarM) <= minutes;
+  return withinMinutes(hmInTZ(now, tz), targetHHMM, minutes);
 }
 
 async function main() {

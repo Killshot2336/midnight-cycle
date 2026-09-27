@@ -1,41 +1,45 @@
+const CACHE = "midnight-v5";
+const PRECACHE = [
+  "./",
+  "./index.html",
+  "./styles.css",
+  "./app.js",
+  "./firebase.js",
+  "./manifest.json",
+  "./modules/guard.js",
+  "./modules/theme.js",
+  "./modules/storage.js",
+  "./modules/backup.js",
+  "./modules/crypto.js",
+  "./modules/cycleModel.js",
+  "./modules/cycleEngine.js",
+  "./modules/forecastEngine.js",
+  "./modules/probability.js",
+  "./modules/calendar.js",
+  "./modules/timeline.js",
+  "./modules/insights.js",
+  "./modules/skilltree.js",
+  "./modules/sexLog.js",
+  "./modules/lock.js",
+  "./modules/notifyFallback.js",
+  "./icon-192.png",
+  "./icon-512.png"
+];
+
 self.addEventListener("install", (e) => {
-  e.waitUntil(
-    caches.open("midnight-v4").then((cache) => cache.addAll([
-      "./",
-      "./index.html",
-      "./styles.css",
-      "./app.js",
-      "./firebase.js",
-      "./notifications.js",
-      "./manifest.json",
-      "./modules/guard.js",
-      "./modules/theme.js",
-      "./modules/storage.js",
-      "./modules/backup.js",
-      "./modules/crypto.js",
-      "./modules/driftModel.js",
-      "./modules/cycleModel.js",
-      "./modules/cycleEngine.js",
-      "./modules/forecastEngine.js",
-      "./modules/probability.js",
-      "./modules/calendar.js",
-      "./modules/timeline.js",
-      "./modules/insights.js",
-      "./modules/skilltree.js",
-      "./modules/sexLog.js",
-      "./modules/lock.js",
-      "./modules/notifyFallback.js",
-      "./icon-192.png",
-      "./icon-512.png"
-    ]))
-  );
+  e.waitUntil((async () => {
+    const cache = await caches.open(CACHE);
+    await Promise.all(PRECACHE.map(async (url) => {
+      try { await cache.add(url); } catch {}
+    }));
+  })());
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (e) => {
   e.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter((k) => k !== "midnight-v4").map((k) => caches.delete(k)));
+    await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
     await self.clients.claim();
   })());
 });
@@ -46,7 +50,7 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
   e.respondWith((async () => {
-    const cache = await caches.open("midnight-v4");
+    const cache = await caches.open(CACHE);
     try {
       const fresh = await fetch(req);
       if (fresh && fresh.ok) cache.put(req, fresh.clone());
@@ -59,7 +63,6 @@ self.addEventListener("fetch", (e) => {
   })());
 });
 
-// Push handler (if supported by device/browser)
 self.addEventListener("push", (event) => {
   let data = {};
   try { data = event.data?.json() || {}; } catch {}

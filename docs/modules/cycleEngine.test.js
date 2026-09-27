@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ensureVault } from "./cycleEngine.js";
+import { ensureVault, markPeriodRange } from "./cycleEngine.js";
 
 test("version 2 vaults migrate without inventing bleed days", () => {
   const vault = ensureVault({
@@ -32,4 +32,20 @@ test("a new vault waits for setup and does not invent bleeding", () => {
   assert.equal(vault.profile.situation, "cycling");
   assert.equal(vault.profile.goal, "bleed");
   assert.deepEqual(vault.daily, {});
+});
+
+test("marking a range keeps days that already have a bleed flow", () => {
+  const vault = ensureVault({
+    version: 3,
+    profile: { onboarded: true, periodsMigrated: true },
+    daily: {
+      "2024-03-01": { flow: "heavy" },
+      "2024-03-02": { flow: "spotting" }
+    }
+  }, "America/Chicago");
+  const marked = markPeriodRange(vault, "2024-03-01", "2024-03-03", "2024-03-03");
+  assert.equal(marked, 2);
+  assert.equal(vault.daily["2024-03-01"].flow, "heavy");
+  assert.equal(vault.daily["2024-03-02"].flow, "medium");
+  assert.equal(vault.daily["2024-03-03"].flow, "medium");
 });

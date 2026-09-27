@@ -64,7 +64,7 @@ export async function ensureUserDoc(fb) {
     meanCycleDays: 0,
     sdCycleDays: 0,
     lastNotifiedDate: "",
-    forecastPushEnabled: true,
+    forecastPushEnabled: false,
     createdAt: fb.serverTimestamp()
   };
   await fb.setDoc(ref, payload, { merge: true });

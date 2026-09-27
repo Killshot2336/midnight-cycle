@@ -19,7 +19,7 @@ import { renderCalendar, monthLabel, shiftMonth } from "./modules/calendar.js";
 import { renderTimeline } from "./modules/timeline.js";
 import { dataGates } from "./modules/skilltree.js";
 import { SYMPTOM_CHIPS, insightSentence, clinicianSummary } from "./modules/insights.js";
-import { hasPasscode, isLocked, setPasscode, unlock as unlockVault, lockNow, setLocked, getSalt } from "./modules/lock.js";
+import { hasPasscode, isLocked, setPasscode, unlock as unlockVault, lockNow, setLocked, getSalt, validPasscode } from "./modules/lock.js";
 import { encryptJSON } from "./modules/crypto.js";
 import { ensureSexDefaults, seedSexDateInput, setSexEntry, getSexEntry, deleteSexEntry, listSexEntries } from "./modules/sexLog.js";
 import { shouldShowBanner, markBannerShown } from "./modules/notifyFallback.js";
@@ -119,7 +119,8 @@ let panic = false;
 let sessionPasscode = "";
 let selectedISO = null;
 let monthAnchor = null;
-let undo = null;
+const UNDO_LIMIT = 20;
+let undoStack = [];
 let fillingMore = false;
 
 main().catch((e) => {
@@ -225,12 +226,14 @@ function wireUI() {
   el.tz.addEventListener("change", async () => {
     vault.profile.tz = el.tz.value;
     await persistVault();
+    syncReminderPrefs();
     renderAll();
   });
 
   el.notifyTime.addEventListener("change", async () => {
     vault.profile.notifyTime = el.notifyTime.value;
     await persistVault();
+    syncReminderPrefs();
     renderAll();
   });
 
@@ -249,13 +252,13 @@ function wireUI() {
   el.enablePushBtn.addEventListener("click", () => ensurePushTokenSoft());
 
   el.undoBtn.addEventListener("click", async () => {
+    const undo = undoStack.pop();
     if (!undo) return;
     if (undo.multi) {
       for (const step of undo.multi) restoreDay(vault, step.iso, step.prev);
     } else {
       restoreDay(vault, undo.iso, undo.prev);
     }
-    undo = null;
     await persistVault();
     renderAll();
   });
@@ -316,14 +319,16 @@ function wireUI() {
       iso = addDaysISO(iso, 1);
       n += 1;
     }
-    markPeriodRange(vault, a, b, today);
-    undo = n ? { multi } : null;
+    const marked = markPeriodRange(vault, a, b, today);
+    if (marked) pushUndo({ multi });
     const stoppedEarly = n === 14 && addDaysISO(a, 13) < b;
     const futureCut = end > today || start > today;
+    const kept = marked > 0 && marked < n ? " Days that were already light, medium, or heavy were left alone." : "";
     if (!n) el.rangeNote.textContent = "Nothing to mark. Future days stay blank.";
-    else if (stoppedEarly) el.rangeNote.textContent = `Marked ${n} days. Only 14 days can be marked at a time.`;
-    else if (futureCut) el.rangeNote.textContent = `Marked ${n} day${n === 1 ? "" : "s"} through today.`;
-    else el.rangeNote.textContent = `Marked ${n} day${n === 1 ? "" : "s"}.`;
+    else if (!marked) el.rangeNote.textContent = "Those days already have bleeding logged, so they were left as they are.";
+    else if (stoppedEarly) el.rangeNote.textContent = `Marked ${marked} days. Only 14 days can be marked at a time.${kept}`;
+    else if (futureCut) el.rangeNote.textContent = `Marked ${marked} day${marked === 1 ? "" : "s"} through today.${kept}`;
+    else el.rangeNote.textContent = `Marked ${marked} day${marked === 1 ? "" : "s"}.${kept}`;
     await persistVault();
     renderAll();
   });
@@ -356,7 +361,7 @@ function wireUI() {
         applyTheme(vault.profile.theme);
         setInputsFromTheme(vault.profile.theme, el);
       }
-      undo = null;
+      undoStack = [];
       await persistVault();
       renderAll();
       el.customNote.textContent = "Vault imported.";
@@ -369,7 +374,11 @@ function wireUI() {
 
   el.setPasscodeBtn.addEventListener("click", async () => {
     const code = prompt("Set a passcode (4–8 digits). Don’t forget it.");
-    if (!code || code.length < 4) return;
+    if (code == null) return;
+    if (!validPasscode(code)) {
+      el.customNote.textContent = "Use 4–8 digits.";
+      return;
+    }
     sessionPasscode = code;
     await setPasscode(code, vault);
     setLocked(false);
@@ -488,7 +497,7 @@ async function saveMore(patch) {
   const { iso, future } = loggingISO();
   if (future) return;
   const prev = updateDay(vault, iso, patch);
-  undo = { iso, prev };
+  pushUndo({ iso, prev });
   await persistVault();
   renderAll();
 }
@@ -498,7 +507,7 @@ async function logFlow(flow) {
   const { iso, future } = loggingISO();
   if (future) return;
   const prev = updateDay(vault, iso, { flow });
-  undo = { iso, prev };
+  pushUndo({ iso, prev });
   await persistVault();
   renderAll();
 }
@@ -511,7 +520,7 @@ async function toggleSymptom(id) {
   if (cur.has(id)) cur.delete(id);
   else cur.add(id);
   const prev = updateDay(vault, iso, { symptoms: [...cur] });
-  undo = { iso, prev };
+  pushUndo({ iso, prev });
   await persistVault();
   renderAll();
 }
@@ -637,7 +646,7 @@ function renderAll() {
   el.insightLine.textContent = insightSentence(vault);
   el.fertileLine.textContent = fertileSentence(model);
 
-  el.undoBtn.classList.toggle("hidden", !undo);
+  el.undoBtn.classList.toggle("hidden", undoStack.length === 0);
   el.backTodayBtn.classList.toggle("hidden", selected === today);
   el.sexLogBtn.classList.toggle("hidden", vault.profile.goal !== "fertility");
 
@@ -674,7 +683,30 @@ function syncControls() {
 
 function setIfIdle(node, value) {
   if (!node || document.activeElement === node) return;
+  if (node.tagName === "SELECT") ensureSelectValue(node, value);
   if (node.value !== value) node.value = value;
+}
+
+function ensureSelectValue(node, value) {
+  if (!value || [...node.options].some((o) => o.value === value)) return;
+  const opt = document.createElement("option");
+  opt.value = value;
+  opt.textContent = value;
+  node.appendChild(opt);
+}
+
+function pushUndo(entry) {
+  undoStack.push(entry);
+  if (undoStack.length > UNDO_LIMIT) undoStack.splice(0, undoStack.length - UNDO_LIMIT);
+}
+
+function syncReminderPrefs() {
+  if (!fb?.uid) return;
+  const ref = fb.doc(fb.db, "users", fb.uid);
+  fb.setDoc(ref, {
+    tz: vault.profile.tz || CONFIG.defaults.tz,
+    notifyTime: vault.profile.notifyTime || CONFIG.defaults.notifyTime
+  }, { merge: true }).catch(() => {});
 }
 
 function renderFlow(current) {
@@ -815,7 +847,7 @@ async function ensurePushTokenSoft() {
     el.customNote.textContent = "Reminders inside the app are on. Push is not available in this browser.";
     return;
   }
-  if (!("Notification" in window)) {
+  if (!("Notification" in window) || !("serviceWorker" in navigator)) {
     el.customNote.textContent = "This browser cannot show push reminders.";
     return;
   }
@@ -836,7 +868,7 @@ async function ensurePushTokenSoft() {
   }
 
   try {
-    const swReg = await navigator.serviceWorker.ready;
+    const swReg = await withTimeout(navigator.serviceWorker.ready, 5000);
     const token = await fb.getToken(fb.messaging, {
       vapidKey: CONFIG.vapidKey,
       serviceWorkerRegistration: swReg

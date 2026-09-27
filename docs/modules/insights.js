@@ -1,5 +1,4 @@
-import { addDaysISO } from "./guard.js";
-import { deriveEpisodes, topSymptom } from "./cycleModel.js";
+import { bleedFinished, deriveEpisodes, topSymptom } from "./cycleModel.js";
 
 export const SYMPTOM_CHIPS = [
   { id: "cramps", label: "Cramps" },
@@ -57,7 +56,7 @@ export function clinicianSummary(vault, model) {
   const today = model?.today || null;
   const closed = episodes.filter((e, i, arr) => {
     if (!today || i < arr.length - 1) return true;
-    return e.end < addDaysISO(today, -1);
+    return bleedFinished(vault?.daily || {}, e, today);
   });
   const bleeds = closed.slice(-6).map((e) => e.bleedDays);
   if (bleeds.length) lines.push(`Recent bleeding lengths (days): ${bleeds.join(", ")}.`);

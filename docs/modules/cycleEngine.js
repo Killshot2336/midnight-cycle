@@ -1,5 +1,5 @@
 import { addDaysISO } from "./guard.js";
-import { ANY_FLOW, deriveEpisodes } from "./cycleModel.js";
+import { ANY_FLOW, START_FLOW, deriveEpisodes } from "./cycleModel.js";
 
 export function ensureVault(vault, tz) {
   const v = vault && typeof vault === "object" ? vault : {};
@@ -90,10 +90,15 @@ export function markPeriodRange(vault, start, end, today) {
   if (today && b > today) b = today;
   let iso = a;
   let n = 0;
+  let marked = 0;
   while (iso <= b && n < 14) {
-    updateDay(vault, iso, { flow: "medium" });
+    const flow = vault.daily?.[iso]?.flow;
+    if (!START_FLOW.has(flow)) {
+      updateDay(vault, iso, { flow: "medium" });
+      marked += 1;
+    }
     iso = addDaysISO(iso, 1);
     n += 1;
   }
-  return vault;
+  return marked;
 }
