@@ -35,39 +35,41 @@ export function renderCalendar(el, opts) {
     if (iso === selectedISO) cell.classList.add("calSelected");
     if (iso === today) cell.classList.add("calToday");
 
-    const tag = document.createElement("div");
+    const tag = document.createElement("span");
     tag.className = "calTag";
     let logged = false;
+    let name = "";
     if (flow === "light" || flow === "medium" || flow === "heavy") {
-      tag.textContent = "Logged";
+      name = "Logged";
       tag.classList.add("tagLogged");
       cell.classList.add("calLogged");
       logged = true;
     } else if (flow === "spotting") {
-      tag.textContent = "Spotting";
+      name = "Spotting";
       tag.classList.add("tagSpot");
       cell.classList.add("calSpot");
       logged = true;
     } else if (ANY_FLOW.has(flow)) {
-      tag.textContent = "Logged";
+      name = "Logged";
       tag.classList.add("tagLogged");
       cell.classList.add("calLogged");
       logged = true;
     } else if (outlook.bleed >= 0.34) {
-      tag.textContent = "Expected";
+      name = "Expected";
       tag.classList.add("tagExpected");
       cell.classList.add("calExpected");
     } else if (outlook.fertile >= 0.34) {
-      tag.textContent = "Fertile";
+      name = "Fertile";
       tag.classList.add("tagFertile");
       cell.classList.add("calFertile");
     }
+    if (name) cell.setAttribute("aria-label", `${d}, ${name}`);
 
     const day = document.createElement("div");
     day.className = "calDay";
     day.textContent = String(d);
     cell.appendChild(day);
-    if (tag.textContent) cell.appendChild(tag);
+    if (name) cell.appendChild(tag);
     if (!plain && calCharm && logged) {
       const gem = document.createElement("span");
       gem.className = "calGem";

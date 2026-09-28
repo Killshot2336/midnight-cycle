@@ -9,7 +9,7 @@ const FLOW = {
 };
 
 const PRESETS = {
-  velvet: pack("velvet", "#e7a0b6", "#140c14", "#24141f", "#f6e9ef", "#cbb4c0", "#e4c58a", "#e4c58a", "glow", "stars", "serif", true),
+  velvet: pack("velvet", "#e7a0b6", "#140c14", "#24141f", "#f6e9ef", "#cbb4c0", "#e4c58a", "#e4c58a", "glow", "none", "serif", false),
   midnight: pack("midnight", "#7c4dff", "#0b0f1a", "#121a2c", "#e9ecff", "#a7b0d6", "#9aa7ff", "#c9b7ff", "glow", "none", "sharp", false),
   noir: pack("noir", "#c73e5a", "#07060a", "#141218", "#f4efe9", "#c4b8b2", "#e8d7c3", "#e8d7c3", "plain", "none", "display", false),
   gold: pack("gold", "#e4c58a", "#16110c", "#2a2118", "#f8f1e4", "#d9cbb8", "#d98b7a", "#e4c58a", "silk", "silk", "serif", true),
@@ -43,6 +43,7 @@ function pack(name, accent, bg, card, text, muted, mark, gold, mood, pattern, ty
   };
 }
 
+PRESETS.velvet.charm2 = "none";
 PRESETS.noir.charm = "dagger";
 PRESETS.noir.charm2 = "none";
 PRESETS.paper.charm = "flower";

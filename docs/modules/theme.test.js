@@ -5,8 +5,9 @@ import { normalizeTheme, presetForStyle } from "./theme.js";
 test("a fresh theme is velvet", () => {
   const t = normalizeTheme(null);
   assert.equal(t.style, "velvet");
-  assert.equal(t.charm, "moon");
-  assert.equal(t.charm2, "star");
+  assert.equal(t.charm, "none");
+  assert.equal(t.charm2, "none");
+  assert.equal(t.pattern, "none");
   assert.equal(t.flow.heavy, "#8e2f45");
   assert.equal(t.type, "serif");
 });

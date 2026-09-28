@@ -1,5 +1,5 @@
 import { CONFIG, initFirebase, ensureUserDoc } from "./firebase.js";
-import { todayISO, addDaysISO } from "./modules/guard.js";
+import { todayISO, addDaysISO, daysBetweenISO } from "./modules/guard.js";
 import { loadMeta, saveMeta, loadVaultRaw, saveVaultRaw } from "./modules/storage.js";
 import { applyTheme, setInputsFromTheme, themeFromInputs, presetForStyle, currentTheme, charmSvg, CHARMS } from "./modules/theme.js";
 import { downloadJSON } from "./modules/backup.js";
@@ -184,7 +184,15 @@ const el = {
   periodTitle: document.getElementById("periodTitle"),
   periodBody: document.getElementById("periodBody"),
   periodClose: document.getElementById("periodClose"),
-  sexPain: document.getElementById("sexPain")
+  sexPain: document.getElementById("sexPain"),
+  cycleRing: document.getElementById("cycleRing"),
+  ringBtn: document.getElementById("ringBtn"),
+  ringDay: document.getElementById("ringDay"),
+  ringKicker: document.getElementById("ringKicker"),
+  ringHint: document.getElementById("ringHint"),
+  logSheet: document.getElementById("logSheet"),
+  logClose: document.getElementById("logClose"),
+  logScrim: document.getElementById("logScrim")
 };
 
 let fb = null;
@@ -205,6 +213,7 @@ let sheetISO = null;
 let openPeriodStart = null;
 let removeArmed = false;
 let clearArmed = "";
+let viewName = "today";
 
 main().catch((e) => {
   console.error("Fatal init error:", e);
@@ -597,9 +606,17 @@ function wireUI() {
     if (vault.profile.discreet) {
       closeDay();
       closePeriod();
+      closeLog();
+      showView("calendar");
     }
     await persistVault();
     renderAll();
+  });
+  el.ringBtn?.addEventListener("click", () => openLog());
+  el.logClose?.addEventListener("click", () => closeLog());
+  el.logScrim?.addEventListener("click", () => closeLog());
+  document.querySelectorAll(".tab").forEach((btn) => {
+    btn.addEventListener("click", () => onTab(btn.dataset.view));
   });
   el.openTodayBtn.addEventListener("click", () => openDay(todayISO(vault.profile.tz || CONFIG.defaults.tz)));
   el.dayClose.addEventListener("click", () => closeDay());
@@ -726,6 +743,7 @@ function setPanic(state) {
   if (panic) {
     closeDay();
     closePeriod();
+    closeLog();
   }
   if (panic) {
     el.appTitle.textContent = "Calendar";
@@ -733,11 +751,97 @@ function setPanic(state) {
     closeSexLog();
     showLockOverlay(false);
     el.onboardOverlay.classList.add("hidden");
+    showView("calendar");
   } else {
     el.appTitle.textContent = "Midnight";
     el.appSub.textContent = "Your cycle, private on this device.";
+    showView("today");
   }
   renderAll();
+}
+
+function showView(name) {
+  const next = panic ? "calendar" : (name || "today");
+  viewName = next === "calendar" || next === "book" || next === "you" ? next : "today";
+  document.body.dataset.view = viewName;
+  document.querySelectorAll(".tab").forEach((btn) => {
+    btn.classList.toggle("on", btn.dataset.view === viewName);
+    btn.setAttribute("aria-current", btn.dataset.view === viewName ? "page" : "false");
+  });
+}
+
+function onTab(name) {
+  if (panic) return;
+  if (name !== "today") closeLog();
+  if (vault?.profile?.discreet && name !== "calendar") {
+    vault.profile.discreet = false;
+    showView(name);
+    persistVault().then(() => renderAll());
+    return;
+  }
+  showView(name);
+}
+
+function openLog() {
+  if (panic || !el.logSheet || vault?.profile?.discreet) return;
+  el.logSheet.classList.remove("hidden");
+}
+
+function closeLog() {
+  el.logSheet?.classList.add("hidden");
+}
+
+function renderCycleRing(model, today) {
+  const ring = el.cycleRing;
+  if (!ring || !el.ringDay) return;
+  const progress = ring.querySelector(".ringProgress");
+  const windowArc = ring.querySelector(".ringWindow");
+  const dot = ring.querySelector(".ringDot");
+  const radius = 118;
+  const circ = 2 * Math.PI * radius;
+  const windowCirc = 2 * Math.PI * 132;
+  const paint = (node, from, to, length) => {
+    const span = Math.max(0, to - from) * length;
+    node.style.strokeDasharray = `${span} ${length}`;
+    node.style.strokeDashoffset = `${-from * length}`;
+  };
+
+  if (!model?.lastStart || model.paused) {
+    paint(progress, 0, 0, circ);
+    paint(windowArc, 0, 0, windowCirc);
+    dot.setAttribute("opacity", "0");
+    ring.classList.remove("ring-bleed", "ring-late");
+    el.ringKicker.textContent = model?.paused ? "" : "Day";
+    el.ringDay.textContent = model?.paused ? "Paused" : "—";
+    el.ringHint.textContent = model?.paused ? "Forecasts are off" : "Log a period to begin";
+    return;
+  }
+
+  const length = Math.max(15, Math.round((model.muF || 15) + (model.muL || 13.5)));
+  const day = daysBetweenISO(model.lastStart, today) + 1;
+  const todayFrac = Math.max(0, Math.min(1, day / length));
+  paint(progress, 0, todayFrac, circ);
+
+  let winFrom = 0;
+  let winTo = 0;
+  if (model.low && model.high) {
+    winFrom = daysBetweenISO(model.lastStart, model.low) / length;
+    winTo = daysBetweenISO(model.lastStart, model.high) / length;
+    winFrom = Math.max(0, Math.min(1, winFrom));
+    winTo = Math.max(winFrom, Math.min(1, winTo));
+  }
+  paint(windowArc, winFrom, winTo, windowCirc);
+
+  const angle = -Math.PI / 2 + todayFrac * Math.PI * 2;
+  dot.setAttribute("cx", String(160 + Math.cos(angle) * radius));
+  dot.setAttribute("cy", String(160 + Math.sin(angle) * radius));
+  dot.setAttribute("opacity", "1");
+  ring.classList.toggle("ring-bleed", !!model.inBleed);
+  ring.classList.toggle("ring-late", !!(model.late && !model.inBleed));
+  el.ringKicker.textContent = "Day";
+  el.ringDay.textContent = String(Math.max(day, 1));
+  el.ringHint.textContent = model.inBleed ? "Bleeding" : (model.late ? "Later than usual" : `of about ${length}`);
+  if (el.ringBtn) el.ringBtn.setAttribute("aria-label", `Day ${Math.max(day, 1)}. Log today`);
 }
 
 function showLockOverlay(show) {
@@ -856,7 +960,12 @@ function renderAll() {
   el.backTodayBtn.classList.add("hidden");
   el.sexLogBtn.classList.toggle("hidden", vault.profile.goal !== "fertility");
   document.body.classList.toggle("discreet", !!vault.profile.discreet);
-  if (el.coverBtn) el.coverBtn.textContent = vault.profile.discreet ? "Show" : "Cover";
+  if (el.coverBtn) {
+    el.coverBtn.setAttribute("aria-label", vault.profile.discreet ? "Show" : "Cover");
+    el.coverBtn.classList.toggle("on", !!vault.profile.discreet);
+  }
+  if (vault.profile.discreet && viewName !== "calendar") showView("calendar");
+  renderCycleRing(model, today);
   if (el.pillRow) el.pillRow.classList.toggle("hidden", vault.profile.situation !== "hormonal");
 
   renderFlow(day.flow || "");
@@ -1453,6 +1562,11 @@ function playLookSweep() {
 
 function playLogMotion(flow, iso) {
   if (panic) return;
+  if (el.cycleRing) {
+    el.cycleRing.classList.remove("ringTravel");
+    void el.cycleRing.offsetWidth;
+    el.cycleRing.classList.add("ringTravel");
+  }
   const btn = el.flowRow.querySelector(`[data-flow="${flow}"]`);
   if (flow === "spotting") {
     btn?.classList.add("spark");

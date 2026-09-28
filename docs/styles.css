@@ -94,11 +94,12 @@ body.type-display{--display:Didot, "Bodoni MT", "Bodoni 72", "Times New Roman", 
   background:var(--accent);
   box-shadow:0 0 0 4px color-mix(in srgb, var(--gold) 35%, transparent), 0 0 16px var(--accent);
 }
-.title{font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:13px}
-.sub{font-size:12px;color:var(--muted);margin-top:2px}
+.title{font-family:var(--display);font-weight:500;letter-spacing:0;font-size:22px;line-height:1}
+.sub{display:none;font-size:12px;color:var(--muted);margin-top:2px}
+body.panicMode .sub{display:block}
 .topActions{display:flex;gap:8px}
 
-.main{max-width:1080px;width:100%;margin:0 auto;padding:18px 16px 28px;display:flex;flex-direction:column;gap:16px}
+.main{max-width:720px;width:100%;margin:0 auto;padding:8px 16px 120px;display:flex;flex-direction:column;gap:16px}
 body.room-compact .main{gap:10px;padding-top:12px}
 
 .card{
@@ -127,9 +128,9 @@ body.room-compact .card{padding:12px}
 .heroLeft:has(.corner-tl:not(.hidden)) .kpiLabel,
 .heroLeft:has(.corner-tl:not(.hidden)) .headline,
 .heroLeft:has(.corner-tl:not(.hidden)) .personalLine{padding-left:76px}
-.panelTitle{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.panelTitle{font-size:13px;letter-spacing:0;text-transform:none;color:var(--muted);font-weight:600}
 
-.kpiLabel{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.kpiLabel{font-size:13px;letter-spacing:0;text-transform:none;color:var(--muted);font-weight:600}
 .headline,.previewHeadline{
   margin:0;
   font-family:var(--display);
@@ -220,7 +221,7 @@ body.chips-stamps .chip{border-radius:4px;letter-spacing:.06em;text-transform:up
   color:#fffaf8;
 }
 .btn.ghost{background:transparent}
-.btn:active{transform:translateY(1px)}
+.btn:active,.tab:active,.flowBtn:active,.chip:active,.ringBtn:active{transform:scale(.97)}
 
 .banner{
   border-radius:var(--radius);
@@ -265,27 +266,42 @@ body.chips-stamps .chip{border-radius:4px;letter-spacing:.06em;text-transform:up
 }
 .calCell{
   position:relative;
-  border-radius:calc(var(--radius) - 8px);
+  border-radius:18px;
   border:1px solid transparent;
   background:transparent;
-  padding:8px 6px 6px;
-  min-height:62px;
-  display:flex;flex-direction:column;align-items:flex-start;gap:4px;
+  padding:8px 4px 14px;
+  min-height:52px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;
   cursor:pointer;
-  text-align:left;
+  text-align:center;
   color:inherit;
   font:inherit;
   appearance:none;
   width:100%;
 }
-.calCell.dim{opacity:.28;cursor:default;min-height:28px}
-.calDay{font-weight:600;font-size:14px}
-.calTag{font-size:10px;letter-spacing:.03em;color:var(--muted)}
+.calCell.dim{opacity:.28;cursor:default;min-height:28px;padding:0}
+.calDay{font-weight:600;font-size:15px}
+.calTag{
+  position:absolute;
+  width:5px;height:5px;
+  left:50%;bottom:7px;
+  transform:translateX(-50%);
+  border-radius:50%;
+  font-size:0;
+  padding:0;
+  color:transparent;
+}
+.tagLogged{background:var(--flow-medium)}
+.tagSpot{background:var(--flow-spot)}
+.tagExpected,.tagFertile{background:var(--mark)}
 .calToday{box-shadow:inset 0 0 0 1.5px var(--accent)}
 .calSelected{border-color:var(--accent)}
-.tagLogged{color:var(--flow-medium)}
-.tagSpot{color:var(--flow-spot)}
-.tagExpected,.tagFertile{color:var(--mark)}
+.legend{display:flex;gap:16px;justify-content:center;margin-top:14px;color:var(--muted);font-size:12px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legendDot{width:6px;height:6px;border-radius:50%;display:inline-block}
+.legendDot.logged{background:var(--flow-medium)}
+.legendDot.expected{background:var(--mark)}
+.legendDot.fertile{background:var(--accent)}
 body.marks-wash .calLogged{background:color-mix(in srgb, var(--flow-medium) 24%, transparent)}
 body.marks-wash .calSpot{background:color-mix(in srgb, var(--flow-spot) 28%, transparent)}
 body.marks-wash .calExpected{background:color-mix(in srgb, var(--mark) 16%, transparent)}
@@ -368,7 +384,7 @@ body.room-compact .calTag{display:none}
 .checkRow label{display:flex;gap:8px;align-items:center;font-size:14px}
 
 .formRow{display:grid;grid-template-columns:140px 1fr;gap:12px;align-items:center;margin:10px 0}
-.label{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.label{font-size:13px;letter-spacing:0;text-transform:none;color:var(--muted);font-weight:600}
 .input{
   width:100%;
   border-radius:12px;
@@ -447,17 +463,6 @@ body.panicMode .shell::after{display:none !important}
   .formRow{grid-template-columns:1fr;gap:6px}
   .calendar{gap:3px}
   .calCell{min-height:46px;padding:4px}
-  .calTag{
-    position:absolute;
-    width:6px;height:6px;
-    right:5px;bottom:5px;
-    border-radius:50%;
-    font-size:0;
-    padding:0;
-  }
-  .tagLogged{background:var(--flow-medium)}
-  .tagSpot{background:var(--flow-spot)}
-  .tagExpected,.tagFertile{background:var(--mark)}
   .skillTree{grid-template-columns:1fr}
   .footer{flex-direction:column;align-items:flex-start;gap:8px}
   .corner-tr,.corner-tl{top:10px}
@@ -795,6 +800,160 @@ body.panicMode .lookSweep{
   animation:none !important;
 }
 body.panicMode .lookSweep{display:none}
+
+[data-view-panel]{display:none}
+body[data-view="today"] [data-view-panel="today"]{display:flex}
+body[data-view="calendar"] [data-view-panel="calendar"],
+body[data-view="book"] [data-view-panel="book"],
+body[data-view="you"] [data-view-panel="you"]{display:block}
+body[data-view="you"] .footer{display:flex}
+body.panicMode .tabbar,
+body.panicMode .legend,
+body.panicMode .logSheet{display:none !important}
+body.panicMode [data-view-panel]{display:none !important}
+body.panicMode [data-view-panel="calendar"]{display:block !important}
+
+.stage{
+  position:relative;
+  min-height:calc(100vh - 150px);
+  border:0;
+  background:transparent;
+  box-shadow:none;
+  padding:8px 0 28px;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+}
+.stage .stageLight,
+.stage .charmLayer{display:none !important}
+.stageCopy{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;max-width:34rem}
+.stageCopy .lead:empty,
+.stageCopy .insightLine:empty{display:none}
+.ringBtn{
+  position:relative;
+  width:min(340px, 86vw);
+  border:0;
+  background:transparent;
+  color:inherit;
+  padding:0;
+  cursor:pointer;
+  font:inherit;
+}
+.cycleRing{width:100%;height:auto;display:block;overflow:visible}
+.ringTrack,.ringWindow,.ringProgress{
+  fill:none;
+  stroke-linecap:round;
+  transform-origin:160px 160px;
+  transform:rotate(-90deg);
+}
+.ringTrack{stroke:color-mix(in srgb, var(--text) 14%, transparent);stroke-width:10}
+.ringWindow{stroke:color-mix(in srgb, var(--accent) 70%, transparent);stroke-width:6}
+.ringProgress{stroke:var(--accent);stroke-width:10}
+.ring-bleed .ringProgress{stroke:var(--flow-medium)}
+.ring-late .ringDot{fill:var(--accent)}
+.ringDot{fill:var(--text);stroke:var(--bg);stroke-width:4}
+.ringProgress,.ringWindow,.ringDot{transition:stroke-dashoffset .7s cubic-bezier(.22,.8,.3,1), stroke-dasharray .7s cubic-bezier(.22,.8,.3,1), cx .7s cubic-bezier(.22,.8,.3,1), cy .7s cubic-bezier(.22,.8,.3,1)}
+.ringFace{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  pointer-events:none;
+}
+.ringKicker{font-size:13px;color:var(--muted);font-weight:600}
+.ringDay{
+  font-family:var(--display);
+  font-size:clamp(64px, 16vw, 84px);
+  line-height:.9;
+  font-weight:500;
+  letter-spacing:-.04em;
+}
+.ringHint{margin-top:8px;font-size:13px;color:var(--muted)}
+.ringTravel .ringDot{transform-box:fill-box;transform-origin:center;animation:dotRest .6s cubic-bezier(.22,.8,.3,1)}
+@keyframes dotRest{
+  0%{transform:scale(1)}
+  40%{transform:scale(1.5)}
+  100%{transform:scale(1)}
+}
+
+.tabbar{
+  position:fixed;
+  left:50%;
+  bottom:calc(14px + env(safe-area-inset-bottom));
+  transform:translateX(-50%);
+  z-index:20;
+  display:flex;
+  width:min(420px, calc(100% - 24px));
+  gap:4px;
+  padding:5px;
+  border-radius:999px;
+  background:color-mix(in srgb, var(--card) 86%, transparent);
+  border:1px solid var(--line);
+  backdrop-filter:blur(18px);
+  box-shadow:0 10px 30px rgba(0,0,0,.28);
+}
+.tab{
+  flex:1;
+  border:0;
+  background:transparent;
+  color:var(--muted);
+  border-radius:999px;
+  min-height:40px;
+  padding:8px 6px;
+  font:inherit;
+  font-size:13px;
+  font-weight:600;
+  cursor:pointer;
+}
+.tab.on{background:color-mix(in srgb, var(--accent) 20%, transparent);color:var(--text)}
+.iconBtn{
+  width:40px;height:40px;padding:0;
+  display:grid;place-items:center;
+  border-radius:50%;
+}
+.iconBtn.on{background:color-mix(in srgb, var(--accent) 22%, transparent)}
+
+.logSheet{
+  position:fixed;inset:0;z-index:40;
+  display:flex;align-items:flex-end;justify-content:center;
+}
+.logScrim{position:absolute;inset:0;border:0;background:color-mix(in srgb, var(--bg) 46%, transparent);cursor:pointer}
+.sheetCard{
+  position:relative;
+  width:min(560px, 100%);
+  max-height:min(86vh, 760px);
+  overflow:auto;
+  display:flex;flex-direction:column;gap:12px;
+  background:var(--card);
+  border:1px solid var(--line);
+  border-bottom:0;
+  border-radius:28px 28px 0 0;
+  padding:8px 18px calc(22px + env(safe-area-inset-bottom));
+  box-shadow:var(--shadow);
+  animation:sheetUp .48s cubic-bezier(.22,.8,.3,1);
+}
+.sheetGrab{
+  width:36px;height:4px;border-radius:99px;margin:6px auto 0;
+  background:color-mix(in srgb, var(--text) 24%, transparent);
+}
+@keyframes sheetUp{
+  from{transform:translateY(28px);opacity:.4}
+  to{transform:none;opacity:1}
+}
+[data-view-panel="book"] .cardTitle,
+[data-view-panel="book"] .listItemTitle{
+  font-family:var(--display);
+  font-weight:500;
+  font-size:22px;
+}
+[data-view-panel="book"] .listItem{
+  padding:16px 4px;
+  border:0;
+  border-bottom:1px solid var(--line);
+  border-radius:0;
+  background:transparent;
+}
+body.pattern-stars::before{opacity:.2}
+body.pattern-lace::before{opacity:.16}
 
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{
