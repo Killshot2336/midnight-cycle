@@ -9,6 +9,8 @@ import {
   parseStartDates,
   shareSentence,
   reminderRelevant,
+  usualBleedDays,
+  yearCells,
   visitText,
   mentionSentence
 } from "./cycleBook.js";
@@ -97,6 +99,35 @@ test("reminders can be the day before, the day, or off", () => {
   assert.equal(reminderRelevant(model, "2026-04-01", "day"), false);
   assert.equal(reminderRelevant(model, "2026-04-02", "day"), true);
   assert.equal(reminderRelevant(model, "2026-04-02", "off"), false);
+  assert.equal(reminderRelevant({ ...model, low: "2026-04-01" }, "2026-04-01", "open"), true);
+  assert.equal(reminderRelevant({ ...model, low: "2026-04-01" }, "2026-04-02", "open"), false);
+});
+
+test("a year marks bleeding and leaves spotting lighter", () => {
+  const cells = yearCells({
+    daily: {
+      "2026-09-01": { flow: "medium" },
+      "2026-09-02": { flow: "spotting" }
+    }
+  }, "2026-09-28");
+  const bleed = cells.find((cell) => cell.iso === "2026-09-01");
+  const spot = cells.find((cell) => cell.iso === "2026-09-02");
+  assert.equal(bleed.kind, "bleed");
+  assert.equal(spot.kind, "spot");
+  assert.equal(cells.at(-1).iso, "2026-09-28");
+});
+
+test("usual bleed length is the middle of her finished periods", () => {
+  const daily = {
+    "2026-01-01": { flow: "medium" },
+    "2026-01-02": { flow: "medium" },
+    "2026-01-03": { flow: "none" },
+    "2026-01-29": { flow: "heavy" },
+    "2026-01-30": { flow: "medium" },
+    "2026-01-31": { flow: "light" },
+    "2026-02-01": { flow: "none" }
+  };
+  assert.equal(usualBleedDays({ daily, profile: {} }, "2026-03-01"), 2);
 });
 
 test("a long bleed is worth mentioning, without a diagnosis", () => {

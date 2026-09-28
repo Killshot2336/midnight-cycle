@@ -6,7 +6,8 @@ import {
   START_FLOW,
   validDay,
   formatMonthDay,
-  formatWeekday
+  formatWeekday,
+  topSymptom
 } from "./cycleModel.js";
 import { SYMPTOM_CHIPS, insightSentence, symptomLabel } from "./insights.js";
 
@@ -191,10 +192,43 @@ export function visibleSymptoms(vault) {
   return [...builtins, ...custom];
 }
 
+export function usualBleedDays(vault, today) {
+  const counts = periodPages(vault, today)
+    .filter((page) => page.finished && page.periodDays > 0)
+    .slice(0, 6)
+    .map((page) => page.periodDays);
+  if (counts.length < 2) return null;
+  const sorted = [...counts].sort((a, b) => a - b);
+  return sorted[Math.floor((sorted.length - 1) / 2)];
+}
+
+export function symptomNowLine(vault, model) {
+  const top = topSymptom(vault);
+  if (!top || !model?.median || !model.today || model.paused || model.inBleed) return "";
+  if (daysBetweenISO(model.median, model.today) !== top.offset) return "";
+  return `${symptomLabel(vault, top.id)} often shows up around now.`;
+}
+
+export function yearCells(vault, today) {
+  if (!validDay(today)) return [];
+  const start = addDaysISO(today, -363);
+  const cells = [];
+  for (let iso = start; iso <= today; iso = addDaysISO(iso, 1)) {
+    const flow = vault?.daily?.[iso]?.flow || "";
+    let kind = "";
+    if (flow === "spotting") kind = "spot";
+    else if (START_FLOW.has(flow)) kind = "bleed";
+    cells.push({ iso, kind });
+  }
+  return cells;
+}
+
 export function reminderRelevant(model, today, mode) {
-  if (!model || model.paused || model.inBleed || !model.median || !today) return false;
-  const setting = mode || "both";
+  if (!model || model.paused || model.inBleed || !today) return false;
+  const setting = mode || "open";
   if (setting === "off") return false;
+  if (setting === "open") return !!model.low && model.low === today;
+  if (!model.median) return false;
   const tomorrow = addDaysISO(today, 1);
   if (setting === "before") return model.median === tomorrow;
   if (setting === "day") return model.median === today;

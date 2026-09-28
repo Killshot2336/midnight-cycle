@@ -370,7 +370,7 @@ export function buildForecastModel(vault, today) {
   if (paused || !last) return model;
 
   const flowToday = daily[today]?.flow;
-  if (START_FLOW.has(flowToday)) {
+  if (START_FLOW.has(flowToday) && !daily[today]?.ended) {
     model.inBleed = true;
     model.bleedDay = daysBetweenISO(last.start, today) + 1;
   }
@@ -641,12 +641,13 @@ export function wideSentence(model) {
 export function ringReadout(model, today) {
   if (!model?.lastStart || model.paused) {
     if (model?.paused) {
-      return { kicker: "", day: "Paused", hint: "Forecasts are off", frac: 0, word: true, aria: "Paused. Forecasts are off" };
+      return { kicker: "", day: "Paused", hint: "Forecasts are off", frac: 0, word: true, glance: "—", aria: "Paused. Forecasts are off" };
     }
-    return { kicker: "Day", day: "—", hint: "Log a period to begin", frac: 0, word: false, aria: "Log a period to begin" };
+    return { kicker: "Day", day: "—", hint: "Log a period to begin", frac: 0, word: false, glance: "—", aria: "Log a period to begin" };
   }
   const length = Math.max(15, Math.round((model.muF || 15) + (model.muL || 13.5)));
   const day = daysBetweenISO(model.lastStart, today || model.today) + 1;
+  const glance = String(Math.max(day, 1));
   if (model.inBleed) {
     const bleed = model.bleedDay || 1;
     return {
@@ -655,6 +656,7 @@ export function ringReadout(model, today) {
       hint: "Bleeding",
       frac: Math.max(0, Math.min(1, day / length)),
       word: false,
+      glance,
       aria: `Bleeding, day ${bleed}. Log today`
     };
   }
@@ -665,6 +667,7 @@ export function ringReadout(model, today) {
       hint: "Past the usual length",
       frac: 1,
       word: true,
+      glance,
       aria: "Late. Past the usual length. Log today"
     };
   }
@@ -675,6 +678,7 @@ export function ringReadout(model, today) {
     hint: `of about ${length}`,
     frac: Math.max(0, Math.min(1, shown / length)),
     word: false,
+    glance,
     aria: `Day ${shown}. Log today`
   };
 }
@@ -686,6 +690,68 @@ export function quietLine(model, suppliesText) {
   const supplies = String(suppliesText || "").trim();
   if (supplies) parts.push(supplies);
   return parts.join(" ");
+}
+
+function withReady(line, suppliesText) {
+  const supplies = String(suppliesText || "").trim();
+  if (!line) return supplies;
+  if (!supplies) return line;
+  return `${line} ${supplies}`;
+}
+
+export function landedSentence(model) {
+  if (!model?.inBleed || !model.lastStart || model.today !== model.lastStart) return "";
+  const row = (model.track || []).find((entry) => entry.actual === model.lastStart);
+  if (!row) return "";
+  if (row.covered || !row.error) return "This one landed in the window.";
+  const miss = Math.abs(row.error);
+  const way = row.error > 0 ? "late" : "early";
+  return `This one was ${miss} day${miss === 1 ? "" : "s"} ${way}.`;
+}
+
+export function todayLine(model, extra = {}) {
+  if (model?.paused && model.situation !== "pregnancy") return "Forecasts stay paused until you choose cycling.";
+  if (model?.paused) return "Forecasts stay paused while pregnancy mode is on.";
+  if (!model?.lastStart || !model.today) return "Log a period start to see your window.";
+  const landed = String(extra.landed || "").trim();
+  if (landed) return landed;
+  if (model.inBleed) {
+    if (extra.heavy) return "Often your heavier day.";
+    if (extra.usualBleed) {
+      const n = extra.usualBleed;
+      return `Usually about ${n} day${n === 1 ? "" : "s"}.`;
+    }
+    return "";
+  }
+  if (model.late) return "The likely stretch is still this week.";
+  const symptom = String(extra.symptom || "").trim();
+  if (symptom) return symptom;
+  const length = Math.max(15, Math.round((model.muF || 15) + (model.muL || 13.5)));
+  const day = Math.max(1, daysBetweenISO(model.lastStart, model.today) + 1);
+  const inside = model.low && model.high && model.today >= model.low && model.today <= model.high;
+  if (inside) {
+    const rows = model.track || [];
+    const line = rows.length < 3
+      ? "This is the likely stretch."
+      : `${rows.slice(-6).filter((row) => row.covered).length} of your last ${Math.min(rows.length, 6)} starts landed here.`;
+    return withReady(line, extra.supplies);
+  }
+  if (model.low && model.today < model.low) {
+    const until = daysBetweenISO(model.today, model.low);
+    if (until > 0 && until <= 7) {
+      const name = formatParts(model.low, { weekday: "long" });
+      return withReady(`Window opens ${name}.`, extra.supplies);
+    }
+  }
+  return withReady(`Day ${day} of about ${length}.`, extra.supplies);
+}
+
+export function dayGlanceLine(model, iso) {
+  if (!model || !iso || model.paused || !model.lastStart) return "";
+  if (model.low && model.high && iso >= model.low && iso <= model.high) return "Likely.";
+  const day = daysBetweenISO(model.lastStart, iso) + 1;
+  if (day < 1) return "";
+  return `Day ${day}.`;
 }
 
 export function fertileSentence(model) {

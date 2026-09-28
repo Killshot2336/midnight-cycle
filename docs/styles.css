@@ -301,6 +301,7 @@ body.chips-stamps .chip{border-radius:4px;letter-spacing:.06em;text-transform:up
 .legend span{display:inline-flex;align-items:center;gap:6px}
 .legendDot{width:6px;height:6px;border-radius:50%;display:inline-block}
 .legendDot.logged{background:var(--flow-medium)}
+.legendDot.spot{background:var(--flow-spot)}
 .legendDot.expected{background:var(--mark)}
 .legendDot.fertile{background:var(--accent)}
 body.marks-wash .calLogged{background:color-mix(in srgb, var(--flow-medium) 24%, transparent)}
@@ -879,6 +880,8 @@ body.panicMode [data-view-panel="calendar"]{display:block !important}
 .ringTrack{stroke:color-mix(in srgb, var(--text) 14%, transparent);stroke-width:10}
 .ringWindow{stroke:color-mix(in srgb, var(--accent) 70%, transparent);stroke-width:6}
 .ringProgress{stroke:var(--accent);stroke-width:10}
+.ring-soft .ringWindow{opacity:.38}
+.ring-firm .ringWindow{opacity:1}
 .ring-bleed .ringProgress{stroke:var(--flow-medium)}
 .ring-late .ringDot{fill:var(--accent)}
 .ringDot{fill:var(--text);stroke:var(--bg);stroke-width:4}
@@ -982,6 +985,44 @@ body.panicMode [data-view-panel="calendar"]{display:block !important}
   border-radius:0;
   background:transparent;
 }
+.quickLog{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.firstStart{width:min(22rem,100%);display:flex;flex-direction:column;gap:8px;align-items:stretch}
+.yearStrip{
+  display:grid;
+  grid-auto-flow:column;
+  grid-template-rows:repeat(7, 8px);
+  gap:2px;
+  overflow-x:auto;
+  width:100%;
+  min-height:72px;
+}
+.yearCell{width:8px;height:8px;border-radius:2px;background:color-mix(in srgb, var(--text) 10%, transparent)}
+.yearCell.bleed{background:var(--flow-medium)}
+.yearCell.spot{background:var(--flow-spot)}
+.roomRow{display:flex;gap:8px;margin:0 0 12px}
+.roomPick{
+  border:1px solid var(--line);
+  background:transparent;
+  color:var(--text);
+  border-radius:999px;
+  padding:8px 14px;
+  font:inherit;
+  cursor:pointer;
+}
+.roomPick.on{border-color:var(--accent);background:color-mix(in srgb, var(--accent) 18%, transparent)}
+body[data-room="look"] [data-room-panel="privacy"],
+body[data-room="look"] [data-room-panel="forecast"],
+body[data-room="privacy"] [data-room-panel="look"],
+body[data-room="privacy"] [data-room-panel="forecast"],
+body[data-room="forecast"] [data-room-panel="look"],
+body[data-room="forecast"] [data-room-panel="privacy"]{display:none !important}
+body.discreet .stage.isPrivate{display:flex !important}
+body.discreet .stageCopy,
+body.discreet .quickLog,
+body.discreet .firstStart,
+body.discreet .iconHint,
+body.discreet .ringKicker,
+body.discreet .ringHint{display:none !important}
 body.pattern-stars::before{opacity:.2}
 body.pattern-lace::before{opacity:.16}
 

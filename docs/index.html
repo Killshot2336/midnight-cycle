@@ -9,7 +9,7 @@
   <link rel="icon" href="./icon-192.png" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
-<body data-view="today">
+<body data-view="today" data-room="look">
   <div id="lookSweep" class="lookSweep" aria-hidden="true"></div>
   <div id="appShell" class="shell">
     <header class="topbar">
@@ -37,7 +37,7 @@
     <main class="main">
       <section class="stage isPrivate" data-view-panel="today">
         <p id="iconHint" class="iconHint hidden">
-          <span>The eye covers the forecast. The shield opens a plain calendar. Lock needs a passcode.</span>
+          <span>The eye leaves only the day on the ring. The shield opens a plain calendar. Lock needs a passcode.</span>
           <button id="iconHintDismiss" class="btn ghost sm" type="button">Got it</button>
         </p>
         <div id="stageLight" class="stageLight" aria-hidden="true"></div>
@@ -55,6 +55,22 @@
             <span id="ringHint" class="ringHint">Log a period to begin</span>
           </span>
         </button>
+        <div id="quickLog" class="quickLog">
+          <button id="startBtn" class="btn hidden" type="button">It started</button>
+          <button id="doneBtn" class="btn hidden" type="button">Done</button>
+          <button id="yesterdayBtn" class="btn ghost" type="button">Yesterday</button>
+        </div>
+        <div id="firstStart" class="firstStart hidden">
+          <label class="label" for="obLast">Last period started</label>
+          <input id="obLast" class="input" type="date" />
+          <div id="obExtra"></div>
+          <div id="firstYear" class="yearStrip" aria-hidden="true"></div>
+          <div class="quick">
+            <button id="obAdd" class="btn ghost sm" type="button">Add an earlier start</button>
+            <button id="obSave" class="btn" type="button">See the window</button>
+            <button id="obSkip" class="btn ghost sm" type="button">Not now</button>
+          </div>
+        </div>
         <div class="stageCopy">
           <div id="logDayLabel" class="kpiLabel">Today</div>
           <h1 id="headline" class="headline">Loading…</h1>
@@ -79,9 +95,11 @@
         <div id="calendar" class="calendar"></div>
         <div class="legend" aria-hidden="true">
           <span><i class="legendDot logged"></i>Logged</span>
+          <span><i class="legendDot spot"></i>Spotting</span>
           <span><i class="legendDot expected"></i>Expected</span>
           <span><i class="legendDot fertile"></i>Fertile</span>
         </div>
+        <p id="dayGlance" class="lead hidden"></p>
         <div class="rangeRow isPrivate">
           <div class="label">Mark period days</div>
           <input id="rangeStart" class="input" type="date" />
@@ -93,6 +111,7 @@
 
       <section class="card isPrivate viewPanel" id="cycleBookCard" data-view-panel="book">
         <div class="cardTitle">Your periods</div>
+        <div id="yearStrip" class="yearStrip" aria-label="This year"></div>
         <p id="heavyLine" class="lead"></p>
         <label class="label" for="noteSearch">Search notes</label>
         <input id="noteSearch" class="input" type="search" placeholder="Migraine, travel, cramps" />
@@ -115,12 +134,18 @@
         <div id="copyNote" class="tiny muted"></div>
       </section>
 
-      <section class="card isPrivate viewPanel" data-view-panel="you">
+      <div class="roomRow viewPanel isPrivate" data-view-panel="you">
+        <button class="roomPick on" type="button" data-room="look">Look</button>
+        <button class="roomPick" type="button" data-room="privacy">Privacy</button>
+        <button class="roomPick" type="button" data-room="forecast">Forecast</button>
+      </div>
+
+      <section class="card isPrivate viewPanel" data-view-panel="you" data-room-panel="forecast">
         <div class="cardTitle">What Midnight knows</div>
         <div id="gates" class="skillTree"></div>
       </section>
 
-      <section id="appearanceCard" class="card appearance isPrivate viewPanel" data-view-panel="you">
+      <section id="appearanceCard" class="card appearance isPrivate viewPanel" data-view-panel="you" data-room-panel="look">
         <div class="cardTitle">Appearance</div>
         <p class="lead">Make the screen yours. Charms and phrases are decoration. They do not change the forecast.</p>
 
@@ -269,8 +294,23 @@
         <div id="appearanceNote" class="tiny muted mt"></div>
       </section>
 
-      <details id="settingsCard" class="card settings isPrivate viewPanel" data-view-panel="you">
-        <summary class="cardTitle">Settings</summary>
+      <section class="card isPrivate viewPanel" data-view-panel="you" data-room-panel="privacy">
+        <div class="cardTitle">Privacy</div>
+        <p class="lead">The eye leaves only the day on the ring. The shield opens a plain calendar. Lock needs a passcode.</p>
+        <div class="quick">
+          <button id="vaultExportBtn" class="btn" type="button">Export vault</button>
+          <button id="vaultImportBtn" class="btn" type="button">Import vault</button>
+          <button id="setPasscodeBtn" class="btn ghost" type="button">Set passcode</button>
+          <button id="changePasscodeBtn" class="btn ghost" type="button">Change passcode</button>
+          <button id="removePasscodeBtn" class="btn ghost" type="button">Remove passcode</button>
+        </div>
+        <input id="vaultFile" type="file" accept="application/json" class="hidden" />
+        <div class="tiny muted mt">The export file is a plain JSON copy of this vault. It is not encrypted, even when a passcode is set.</div>
+        <div id="customNote" class="tiny muted mt"></div>
+      </section>
+
+      <details id="settingsCard" class="card settings isPrivate viewPanel" data-view-panel="you" data-room-panel="forecast" open>
+        <summary class="cardTitle">Forecast</summary>
 
         <div class="formRow">
           <label class="label" for="situation">Situation</label>
@@ -298,6 +338,7 @@
         <div class="formRow">
           <label class="label" for="remindWhen">In-app reminder</label>
           <select id="remindWhen" class="input">
+            <option value="open">The morning the window opens</option>
             <option value="both">Day before and the day</option>
             <option value="before">The day before</option>
             <option value="day">The day itself</option>
@@ -383,19 +424,6 @@
           <button id="enablePushBtn" class="btn" type="button">Enable reminders on this device</button>
         </div>
 
-        <div class="divider"></div>
-
-        <div class="quick">
-          <button id="vaultExportBtn" class="btn" type="button">Export vault</button>
-          <button id="vaultImportBtn" class="btn" type="button">Import vault</button>
-          <button id="setPasscodeBtn" class="btn ghost" type="button">Set passcode</button>
-          <button id="changePasscodeBtn" class="btn ghost" type="button">Change passcode</button>
-          <button id="removePasscodeBtn" class="btn ghost" type="button">Remove passcode</button>
-        </div>
-
-        <input id="vaultFile" type="file" accept="application/json" class="hidden" />
-        <div class="tiny muted mt">The export file is a plain JSON copy of this vault. It is not encrypted, even when a passcode is set.</div>
-        <div id="customNote" class="tiny muted mt"></div>
       </details>
     </main>
 
@@ -416,7 +444,7 @@
     <div class="sheetCard">
       <div class="sheetGrab" aria-hidden="true"></div>
       <div class="overlayTitleRow">
-        <div class="overlayTitle">Today</div>
+        <div id="logTitle" class="overlayTitle">Today</div>
         <button id="logClose" class="btn ghost sm" type="button">Close</button>
       </div>
       <div id="flowRow" class="flowRow"></div>
@@ -481,44 +509,7 @@
     </div>
   </div>
 
-  <div id="onboardOverlay" class="overlay hidden" role="dialog" aria-modal="true">
-    <div class="overlayCard">
-      <div class="overlayTitle">Set up your window</div>
-      <div class="overlaySub muted">The first forecast is an early guess. It gets personal after a few confirmed cycles.</div>
-
-      <div class="formRow">
-        <label class="label" for="obLast">Last period started</label>
-        <input id="obLast" class="input" type="date" />
-      </div>
-      <div id="obExtra"></div>
-      <button id="obAdd" class="btn ghost sm" type="button">Add an earlier start</button>
-
-      <div class="formRow">
-        <label class="label" for="obSituation">What fits right now</label>
-        <select id="obSituation" class="input">
-          <option value="cycling">Cycling</option>
-          <option value="hormonal">Hormonal birth control</option>
-          <option value="postpartum">Postpartum</option>
-          <option value="pregnancy">Pregnancy</option>
-          <option value="irregular">Irregular cycles</option>
-        </select>
-      </div>
-
-      <div class="formRow">
-        <label class="label" for="obGoal">What do you want</label>
-        <select id="obGoal" class="input">
-          <option value="bleed">Know when I'll bleed</option>
-          <option value="symptoms">Understand symptoms</option>
-          <option value="fertility">Fertility awareness</option>
-        </select>
-      </div>
-
-      <div class="quick">
-        <button id="obSave" class="btn primary" type="button">See my window</button>
-        <button id="obSkip" class="btn ghost" type="button">Not now</button>
-      </div>
-    </div>
-  </div>
+  <div id="onboardOverlay" class="overlay hidden" hidden></div>
 
   <div id="lockOverlay" class="overlay hidden" role="dialog" aria-modal="true">
     <div class="overlayCard">

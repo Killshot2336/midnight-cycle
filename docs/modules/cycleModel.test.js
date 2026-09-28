@@ -13,7 +13,10 @@ import {
   fitEpisodes,
   topSymptom,
   ringReadout,
-  quietLine
+  quietLine,
+  todayLine,
+  landedSentence,
+  dayGlanceLine
 } from "./cycleModel.js";
 import { clinicianSummary } from "./insights.js";
 
@@ -306,4 +309,73 @@ test("the quiet line is one sentence for the hit rate", () => {
   assert.equal(line, "This window is wide on purpose. Off by 2 days last time. 2 of 3 starts fell in the window. Have ready: pads");
   const paused = quietLine({ wide: true, paused: true, lastStart: "2026-01-01", track: [] }, "Have ready: pads");
   assert.equal(paused.startsWith("This window is wide"), false);
+});
+
+test("the today line changes with where she is in the cycle", () => {
+  const far = todayLine({
+    lastStart: "2026-09-01",
+    today: "2026-09-12",
+    muF: 15,
+    muL: 13,
+    low: "2026-09-26",
+    high: "2026-09-30",
+    late: false,
+    inBleed: false,
+    track: []
+  });
+  assert.equal(far, "Day 12 of about 28.");
+  const near = todayLine({
+    lastStart: "2026-09-01",
+    today: "2026-09-22",
+    muF: 15,
+    muL: 13,
+    low: "2026-09-25",
+    high: "2026-09-30",
+    track: []
+  });
+  assert.equal(near, "Window opens Friday.");
+  const inside = todayLine({
+    lastStart: "2026-09-01",
+    today: "2026-09-27",
+    low: "2026-09-25",
+    high: "2026-09-30",
+    track: [
+      { covered: true },
+      { covered: true },
+      { covered: false },
+      { covered: true }
+    ]
+  });
+  assert.equal(inside, "3 of your last 4 starts landed here.");
+  const late = todayLine({ lastStart: "2026-06-01", today: "2026-09-28", late: true, low: "2026-09-28", high: "2026-10-03" });
+  assert.equal(late, "The likely stretch is still this week.");
+  const heavy = todayLine({ lastStart: "2026-09-26", today: "2026-09-28", inBleed: true, bleedDay: 3 }, { heavy: true, usualBleed: 5 });
+  assert.equal(heavy, "Often your heavier day.");
+  const usual = todayLine({ lastStart: "2026-09-26", today: "2026-09-28", inBleed: true }, { usualBleed: 5 });
+  assert.equal(usual, "Usually about 5 days.");
+  const symptom = todayLine({ lastStart: "2026-09-01", today: "2026-09-12", low: "2026-09-26", high: "2026-09-30" }, { symptom: "Cramps often shows up around now." });
+  assert.equal(symptom, "Cramps often shows up around now.");
+});
+
+test("a new period says once whether it landed in the window", () => {
+  const model = {
+    inBleed: true,
+    lastStart: "2026-09-28",
+    today: "2026-09-28",
+    track: [{ actual: "2026-09-28", error: -2, covered: false }]
+  };
+  assert.equal(landedSentence(model), "This one was 2 days early.");
+  assert.equal(landedSentence({ ...model, today: "2026-09-29" }), "");
+  assert.equal(landedSentence({
+    inBleed: true,
+    lastStart: "2026-09-28",
+    today: "2026-09-28",
+    track: [{ actual: "2026-09-28", error: 1, covered: true }]
+  }), "This one landed in the window.");
+});
+
+test("a future day answers in one line", () => {
+  const model = { lastStart: "2026-09-01", low: "2026-09-25", high: "2026-09-30" };
+  assert.equal(dayGlanceLine(model, "2026-09-27"), "Likely.");
+  assert.equal(dayGlanceLine(model, "2026-09-12"), "Day 12.");
 });

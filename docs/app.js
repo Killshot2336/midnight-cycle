@@ -9,7 +9,9 @@ import {
   formatWeekday,
   headlineFor,
   ringReadout,
-  quietLine,
+  todayLine,
+  landedSentence,
+  dayGlanceLine,
   topSymptom
 } from "./modules/cycleModel.js";
 import { renderCalendar, monthLabel, shiftMonth } from "./modules/calendar.js";
@@ -34,6 +36,9 @@ import {
   reminderRelevant,
   supplyLines,
   symptomLevelLabel,
+  usualBleedDays,
+  symptomNowLine,
+  yearCells,
   CONTEXTS,
   PRODUCTS,
   MUCUS,
@@ -190,6 +195,14 @@ const el = {
   ringDay: document.getElementById("ringDay"),
   ringKicker: document.getElementById("ringKicker"),
   ringHint: document.getElementById("ringHint"),
+  startBtn: document.getElementById("startBtn"),
+  doneBtn: document.getElementById("doneBtn"),
+  yesterdayBtn: document.getElementById("yesterdayBtn"),
+  firstStart: document.getElementById("firstStart"),
+  firstYear: document.getElementById("firstYear"),
+  yearStrip: document.getElementById("yearStrip"),
+  dayGlance: document.getElementById("dayGlance"),
+  logTitle: document.getElementById("logTitle"),
   logSheet: document.getElementById("logSheet"),
   logClose: document.getElementById("logClose"),
   logScrim: document.getElementById("logScrim")
@@ -210,6 +223,7 @@ let monthMotion = "";
 let decorKey = "";
 let fillingMore = false;
 let sheetISO = null;
+let logISO = null;
 let openPeriodStart = null;
 let removeArmed = false;
 let clearArmed = "";
@@ -574,22 +588,23 @@ function wireUI() {
     loadSexEntryIntoForm();
   });
 
+  el.obLast?.addEventListener("change", () => previewFirst());
   el.obAdd.addEventListener("click", () => {
     const input = document.createElement("input");
     input.type = "date";
     input.className = "input obExtra";
+    input.addEventListener("change", () => previewFirst());
     el.obExtra.appendChild(input);
   });
 
   el.obSave.addEventListener("click", async () => {
-    vault.profile.situation = el.obSituation.value || "cycling";
-    vault.profile.goal = el.obGoal.value || "bleed";
+    vault.profile.situation = vault.profile.situation || "cycling";
+    vault.profile.goal = vault.profile.goal || "bleed";
     vault.profile.onboarded = true;
     el.situation.value = vault.profile.situation;
     el.goal.value = vault.profile.goal;
     const today = todayISO(vault.profile.tz || CONFIG.defaults.tz);
-    const dates = [el.obLast.value, ...[...el.obExtra.querySelectorAll("input")].map((n) => n.value)];
-    for (const iso of dates) {
+    for (const iso of startDates()) {
       if (iso && iso <= today) addPeriodStart(vault, iso);
     }
     await persistVault();
@@ -608,7 +623,7 @@ function wireUI() {
       closeDay();
       closePeriod();
       closeLog();
-      showView("calendar");
+      showView("today");
     }
     await persistVault();
     renderAll();
@@ -618,13 +633,28 @@ function wireUI() {
     await persistVault();
     paintIconHint();
   });
-  el.ringBtn?.addEventListener("click", () => openLog());
+  el.ringBtn?.addEventListener("click", () => {
+    if (vault?.profile?.discreet) return;
+    openLog();
+  });
+  el.startBtn?.addEventListener("click", () => markToday("medium"));
+  el.doneBtn?.addEventListener("click", () => markToday("none"));
+  el.yesterdayBtn?.addEventListener("click", () => {
+    const today = todayISO(vault.profile.tz || CONFIG.defaults.tz);
+    openLog(addDaysISO(today, -1));
+  });
+  document.querySelectorAll("[data-room]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.body.dataset.room = btn.dataset.room;
+      document.querySelectorAll(".roomPick").forEach((pick) => pick.classList.toggle("on", pick === btn));
+    });
+  });
   el.logClose?.addEventListener("click", () => closeLog());
   el.logScrim?.addEventListener("click", () => closeLog());
   document.querySelectorAll(".tab").forEach((btn) => {
     btn.addEventListener("click", () => onTab(btn.dataset.view));
   });
-  el.openTodayBtn.addEventListener("click", () => openDay(todayISO(vault.profile.tz || CONFIG.defaults.tz)));
+  el.openTodayBtn.addEventListener("click", () => openDay(loggingISO().iso));
   el.dayClose.addEventListener("click", () => closeDay());
   el.periodClose.addEventListener("click", () => closePeriod());
   el.dayBody.addEventListener("click", onDayClick);
@@ -697,7 +727,27 @@ function snapshotDay(vaultObj, iso) {
 function loggingISO() {
   const tz = vault.profile.tz || CONFIG.defaults.tz;
   const today = todayISO(tz);
-  return { tz, today, iso: today, future: false };
+  const iso = logISO && logISO <= today ? logISO : today;
+  return { tz, today, iso, future: false };
+}
+
+function startDates() {
+  return [el.obLast?.value, ...[...el.obExtra.querySelectorAll("input")].map((node) => node.value)].filter(Boolean);
+}
+
+function previewFirst() {
+  if (!vault || vault.profile.onboarded) return;
+  const tz = vault.profile.tz || CONFIG.defaults.tz;
+  const today = todayISO(tz);
+  const copy = JSON.parse(JSON.stringify(vault));
+  for (const iso of startDates()) {
+    if (iso <= today) addPeriodStart(copy, iso);
+  }
+  paintYearInto(el.firstYear, startDates().filter((iso) => iso <= today).map((iso) => ({ iso, kind: "bleed" })));
+  const forecast = buildForecast(copy, tz, 14, today);
+  renderCycleRing(forecast.model, today);
+  el.headline.textContent = headlineFor(forecast.model);
+  el.trackLine.textContent = todayLine(forecast.model, {});
 }
 
 async function saveMore(patch) {
@@ -711,15 +761,38 @@ async function saveMore(patch) {
   renderAll();
 }
 
-async function logFlow(flow) {
+async function writeFlow(iso, flow, opts = {}) {
   if (hasPasscode() && isLocked()) return showLockOverlay(true);
-  const { iso, future } = loggingISO();
-  if (future) return;
+  const today = todayISO(vault.profile.tz || CONFIG.defaults.tz);
+  if (!iso || iso > today) return;
   const prev = updateDay(vault, iso, { flow });
   pushUndo({ iso, prev });
   await persistVault();
-  renderAll({ keepLog: true });
+  if (opts.close) closeLog();
+  renderAll({ keepLog: !el.logSheet.classList.contains("hidden") });
   playLogMotion(flow, iso);
+}
+
+async function markToday(flow) {
+  const tz = vault.profile.tz || CONFIG.defaults.tz;
+  const today = todayISO(tz);
+  if (flow === "none" && START_FLOW.has(vault.daily?.[today]?.flow)) {
+    const model = buildForecast(vault, tz, 14, today).model;
+    if (model.lastStart === today) {
+      const prev = updateDay(vault, today, { ended: true });
+      pushUndo({ iso: today, prev });
+      await persistVault();
+      closeLog();
+      renderAll();
+      return;
+    }
+  }
+  await writeFlow(today, flow, { close: true });
+}
+
+async function logFlow(flow) {
+  const { iso } = loggingISO();
+  await writeFlow(iso, flow);
 }
 
 async function toggleSymptom(id) {
@@ -779,7 +852,7 @@ function showView(name) {
 function onTab(name) {
   if (panic) return;
   if (name !== "today") closeLog();
-  if (vault?.profile?.discreet && name !== "calendar") {
+  if (vault?.profile?.discreet && (name === "book" || name === "you")) {
     vault.profile.discreet = false;
     showView(name);
     persistVault().then(() => renderAll());
@@ -788,13 +861,27 @@ function onTab(name) {
   showView(name);
 }
 
-function openLog() {
+function openLog(iso) {
   if (panic || !el.logSheet || vault?.profile?.discreet) return;
+  const today = todayISO(vault.profile.tz || CONFIG.defaults.tz);
+  if (iso && iso > today) {
+    if (el.dayGlance) {
+      const forecast = buildForecast(vault, vault.profile.tz || CONFIG.defaults.tz, 14, today);
+      el.dayGlance.textContent = dayGlanceLine(forecast.model, iso);
+      el.dayGlance.classList.toggle("hidden", !el.dayGlance.textContent);
+    }
+    return;
+  }
+  logISO = iso && iso < today ? iso : null;
+  if (el.logTitle) el.logTitle.textContent = logISO ? formatWeekday(logISO) : "Today";
+  paintLogDay();
   el.logSheet.classList.remove("hidden");
 }
 
 function closeLog() {
+  logISO = null;
   el.logSheet?.classList.add("hidden");
+  if (el.logTitle) el.logTitle.textContent = "Today";
 }
 
 function renderCycleRing(model, today) {
@@ -817,7 +904,8 @@ function renderCycleRing(model, today) {
     paint(progress, 0, 0, circ);
     paint(windowArc, 0, 0, windowCirc);
     dot.setAttribute("opacity", "0");
-    ring.classList.remove("ring-bleed", "ring-late");
+    ring.classList.remove("ring-bleed", "ring-late", "ring-firm");
+    ring.classList.add("ring-soft");
     paintRingFace(readout);
     return;
   }
@@ -839,17 +927,52 @@ function renderCycleRing(model, today) {
   dot.setAttribute("cx", String(160 + Math.cos(angle) * radius));
   dot.setAttribute("cy", String(160 + Math.sin(angle) * radius));
   dot.setAttribute("opacity", "1");
+  const known = (model.track || []).length >= 3 && !model.wide;
+  ring.classList.toggle("ring-firm", known);
+  ring.classList.toggle("ring-soft", !known);
   ring.classList.toggle("ring-bleed", !!model.inBleed);
   ring.classList.toggle("ring-late", !!(model.late && !model.inBleed));
   paintRingFace(readout);
 }
 
 function paintRingFace(readout) {
-  el.ringKicker.textContent = readout.kicker;
-  el.ringDay.textContent = readout.day;
-  el.ringHint.textContent = readout.hint;
-  el.ringDay.classList.toggle("ringWord", !!readout.word);
-  if (el.ringBtn) el.ringBtn.setAttribute("aria-label", readout.aria);
+  const glance = !!(vault?.profile?.discreet && !panic);
+  el.ringKicker.textContent = glance ? "" : readout.kicker;
+  el.ringDay.textContent = glance ? (readout.glance || readout.day) : readout.day;
+  el.ringHint.textContent = glance ? "" : readout.hint;
+  el.ringDay.classList.toggle("ringWord", !glance && !!readout.word);
+  if (el.ringBtn) el.ringBtn.setAttribute("aria-label", glance ? `Day ${readout.glance || readout.day}` : readout.aria);
+}
+
+function paintQuick(model) {
+  const ready = !!vault?.profile?.onboarded && !model?.paused;
+  const windowOpen = !!(model?.low && model?.high && model.today >= model.low && model.today <= model.high);
+  const canStart = ready && !model?.inBleed && (windowOpen || model?.late || !model?.lastStart);
+  el.startBtn?.classList.toggle("hidden", !canStart);
+  el.doneBtn?.classList.toggle("hidden", !(ready && model?.inBleed));
+  el.yesterdayBtn?.classList.toggle("hidden", !ready);
+}
+
+function paintYearInto(node, cells) {
+  if (!node) return;
+  node.replaceChildren();
+  for (const cell of cells) {
+    const dot = document.createElement("i");
+    dot.className = "yearCell" + (cell.kind ? ` ${cell.kind}` : "");
+    node.appendChild(dot);
+  }
+}
+
+function renderYear(today) {
+  paintYearInto(el.yearStrip, yearCells(vault, today));
+}
+
+function paintLogDay() {
+  const { iso } = loggingISO();
+  const day = vault.daily?.[iso] || {};
+  renderFlow(day.flow || "");
+  renderChips(day);
+  fillMore(day);
 }
 
 function showLockOverlay(show) {
@@ -920,8 +1043,9 @@ function renderAll(opts = {}) {
   const today = todayISO(tz);
   if (!monthAnchor) monthAnchor = `${today.slice(0, 7)}-01`;
 
-  const showOnboard = !panic && !vault.profile.onboarded && !(hasPasscode() && isLocked());
-  el.onboardOverlay.classList.toggle("hidden", !showOnboard);
+  const showFirst = !panic && !vault.profile.onboarded && !(hasPasscode() && isLocked());
+  el.onboardOverlay?.classList.add("hidden");
+  el.firstStart?.classList.toggle("hidden", !showFirst);
   syncControls();
   paintDecor(currentTheme());
 
@@ -945,7 +1069,10 @@ function renderAll(opts = {}) {
 
   const forecast = buildForecast(vault, tz, 14, today);
   const model = forecast.model;
-  const day = vault.daily?.[today] || {};
+  const sheetOpen = el.logSheet && !el.logSheet.classList.contains("hidden");
+  const focusISO = sheetOpen ? loggingISO().iso : today;
+  const day = vault.daily?.[focusISO] || {};
+  if (el.logTitle && sheetOpen) el.logTitle.textContent = logISO ? formatWeekday(logISO) : "Today";
 
   const nextHeadline = headlineFor(model);
   const headlineChanged = lastHeadline !== "" && nextHeadline !== lastHeadline;
@@ -966,8 +1093,8 @@ function renderAll(opts = {}) {
     el.coverBtn.setAttribute("aria-label", vault.profile.discreet ? "Show" : "Cover");
     el.coverBtn.classList.toggle("on", !!vault.profile.discreet);
   }
-  if (vault.profile.discreet && viewName !== "calendar") showView("calendar");
   renderCycleRing(model, today);
+  paintQuick(model);
   if (el.pillRow) el.pillRow.classList.toggle("hidden", vault.profile.situation !== "hormonal");
   placeFertilityFields();
   syncMoreLabel();
@@ -999,7 +1126,14 @@ function renderAll(opts = {}) {
         persistVault().then(() => renderAll());
         return;
       }
-      openDay(iso);
+      if (iso > today) {
+        el.dayGlance.textContent = dayGlanceLine(model, iso);
+        el.dayGlance.classList.toggle("hidden", !el.dayGlance.textContent);
+        return;
+      }
+      el.dayGlance.textContent = "";
+      el.dayGlance.classList.add("hidden");
+      openLog(iso);
     }
   });
 
@@ -1008,6 +1142,7 @@ function renderAll(opts = {}) {
   setForecastMood(model);
 
   renderCycleBook(today);
+  renderYear(today);
   if (el.noteSearch?.value.trim().length >= 2) renderNoteHits();
   if (!quietLog) {
     renderSymptomEditor();
@@ -1025,7 +1160,7 @@ function syncControls() {
   setIfIdle(el.goal, profile.goal || "bleed");
   setIfIdle(el.tz, profile.tz || CONFIG.defaults.tz);
   setIfIdle(el.notifyTime, profile.notifyTime || CONFIG.defaults.notifyTime);
-  setIfIdle(el.remindWhen, profile.remindWhen || "both");
+  setIfIdle(el.remindWhen, profile.remindWhen || "open");
   setIfIdle(el.tempUnit, profile.tempUnit || "C");
   setIfIdle(el.supplyText, profile.supplyText || "");
   if (el.bbtInput) el.bbtInput.placeholder = (profile.tempUnit || "C") === "F" ? "°F" : "°C";
@@ -1100,7 +1235,14 @@ function suppliesPhrase(model, today) {
 }
 
 function paintQuiet(model, today) {
-  el.trackLine.textContent = quietLine(model, suppliesPhrase(model, today));
+  const heavy = heavyDayPattern(vault, today);
+  el.trackLine.textContent = todayLine(model, {
+    landed: landedSentence(model),
+    heavy: !!(model.inBleed && heavy && heavy.day === model.bleedDay),
+    usualBleed: usualBleedDays(vault, today),
+    symptom: symptomNowLine(vault, model),
+    supplies: suppliesPhrase(model, today)
+  });
   for (const node of [el.logDayLabel, el.daySentence, el.lateNote, el.wideNote, el.insightLine, el.fertileLine, el.suppliesLine]) {
     if (node) node.textContent = "";
   }
@@ -1843,12 +1985,13 @@ function renderGates(model) {
 }
 
 function maybeShowFallbackBanner(model, today, tz) {
-  const relevant = reminderRelevant(model, today, vault.profile.remindWhen || "both");
+  const mode = vault.profile.remindWhen || "open";
+  const relevant = reminderRelevant(model, today, mode);
   const t = vault.profile.notifyTime || CONFIG.defaults.notifyTime;
   if (shouldShowBanner(tz, t, { relevant })) {
-    el.bannerText.textContent = model.median === today
-      ? "Most likely today."
-      : "Most likely tomorrow.";
+    el.bannerText.textContent = mode === "open"
+      ? "Check-in."
+      : (model.median === today ? "Most likely today." : "Most likely tomorrow.");
     el.notifyBanner.classList.remove("hidden");
   } else {
     el.notifyBanner.classList.add("hidden");
