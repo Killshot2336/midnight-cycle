@@ -889,15 +889,16 @@ function openLog(iso) {
     return;
   }
   logISO = iso && iso < today ? iso : null;
-  if (el.logTitle) el.logTitle.textContent = logISO ? formatWeekday(logISO) : "Today";
-  paintLogDay();
   el.logSheet.classList.remove("hidden");
+  renderAll();
 }
 
 function closeLog() {
+  const wasOpen = el.logSheet && !el.logSheet.classList.contains("hidden");
   logISO = null;
   el.logSheet?.classList.add("hidden");
   if (el.logTitle) el.logTitle.textContent = "Today";
+  if (wasOpen && vault) renderAll();
 }
 
 function renderCycleRing(model, today) {
