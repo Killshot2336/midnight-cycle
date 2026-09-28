@@ -8,17 +8,14 @@ import { buildForecast } from "./modules/forecastEngine.js";
 import {
   formatWeekday,
   headlineFor,
-  daySentence,
-  trackSentence,
-  lateSentence,
-  wideSentence,
-  fertileSentence,
+  ringReadout,
+  quietLine,
   topSymptom
 } from "./modules/cycleModel.js";
 import { renderCalendar, monthLabel, shiftMonth } from "./modules/calendar.js";
 import { renderTimeline } from "./modules/timeline.js";
 import { dataGates } from "./modules/skilltree.js";
-import { SYMPTOM_CHIPS, insightSentence, clinicianSummary } from "./modules/insights.js";
+import { clinicianSummary } from "./modules/insights.js";
 import { hasPasscode, isLocked, setPasscode, unlock as unlockVault, lockNow, setLocked, getSalt, validPasscode, clearPasscode } from "./modules/lock.js";
 import { encryptJSON } from "./modules/crypto.js";
 import { ensureSexDefaults, seedSexDateInput, setSexEntry, getSexEntry, deleteSexEntry, listSexEntries } from "./modules/sexLog.js";
@@ -69,6 +66,8 @@ const el = {
   symptomChips: document.getElementById("symptomChips"),
   moreToggle: document.getElementById("moreToggle"),
   moreBox: document.getElementById("moreBox"),
+  signRow: document.getElementById("signRow"),
+  iconHint: document.getElementById("iconHint"),
   lhInput: document.getElementById("lhInput"),
   bbtInput: document.getElementById("bbtInput"),
   mucusInput: document.getElementById("mucusInput"),
@@ -392,7 +391,7 @@ function wireUI() {
 
   el.moreToggle.addEventListener("click", () => {
     el.moreBox.classList.toggle("hidden");
-    el.moreToggle.textContent = el.moreBox.classList.contains("hidden") ? "Temperature and notes" : "Hide temperature and notes";
+    syncMoreLabel();
   });
 
   el.lhInput.addEventListener("change", () => saveMore({ lh: el.lhInput.value || "" }));
@@ -614,6 +613,11 @@ function wireUI() {
     await persistVault();
     renderAll();
   });
+  document.getElementById("iconHintDismiss")?.addEventListener("click", async () => {
+    vault.profile.iconHintSeen = true;
+    await persistVault();
+    paintIconHint();
+  });
   el.ringBtn?.addEventListener("click", () => openLog());
   el.logClose?.addEventListener("click", () => closeLog());
   el.logScrim?.addEventListener("click", () => closeLog());
@@ -714,7 +718,7 @@ async function logFlow(flow) {
   const prev = updateDay(vault, iso, { flow });
   pushUndo({ iso, prev });
   await persistVault();
-  renderAll();
+  renderAll({ keepLog: true });
   playLogMotion(flow, iso);
 }
 
@@ -736,7 +740,7 @@ async function toggleSymptom(id) {
   const prev = updateDay(vault, iso, { symptoms: [...cur], symptomLevel: levels });
   pushUndo({ iso, prev });
   await persistVault();
-  renderAll();
+  renderAll({ keepLog: true });
 }
 
 function setPanic(state) {
@@ -808,21 +812,18 @@ function renderCycleRing(model, today) {
     node.style.strokeDashoffset = `${-from * length}`;
   };
 
+  const readout = ringReadout(model, today);
   if (!model?.lastStart || model.paused) {
     paint(progress, 0, 0, circ);
     paint(windowArc, 0, 0, windowCirc);
     dot.setAttribute("opacity", "0");
     ring.classList.remove("ring-bleed", "ring-late");
-    el.ringKicker.textContent = model?.paused ? "" : "Day";
-    el.ringDay.textContent = model?.paused ? "Paused" : "—";
-    el.ringHint.textContent = model?.paused ? "Forecasts are off" : "Log a period to begin";
+    paintRingFace(readout);
     return;
   }
 
   const length = Math.max(15, Math.round((model.muF || 15) + (model.muL || 13.5)));
-  const day = daysBetweenISO(model.lastStart, today) + 1;
-  const todayFrac = Math.max(0, Math.min(1, day / length));
-  paint(progress, 0, todayFrac, circ);
+  paint(progress, 0, readout.frac, circ);
 
   let winFrom = 0;
   let winTo = 0;
@@ -834,16 +835,21 @@ function renderCycleRing(model, today) {
   }
   paint(windowArc, winFrom, winTo, windowCirc);
 
-  const angle = -Math.PI / 2 + todayFrac * Math.PI * 2;
+  const angle = -Math.PI / 2 + readout.frac * Math.PI * 2;
   dot.setAttribute("cx", String(160 + Math.cos(angle) * radius));
   dot.setAttribute("cy", String(160 + Math.sin(angle) * radius));
   dot.setAttribute("opacity", "1");
   ring.classList.toggle("ring-bleed", !!model.inBleed);
   ring.classList.toggle("ring-late", !!(model.late && !model.inBleed));
-  el.ringKicker.textContent = "Day";
-  el.ringDay.textContent = String(Math.max(day, 1));
-  el.ringHint.textContent = model.inBleed ? "Bleeding" : (model.late ? "Later than usual" : `of about ${length}`);
-  if (el.ringBtn) el.ringBtn.setAttribute("aria-label", `Day ${Math.max(day, 1)}. Log today`);
+  paintRingFace(readout);
+}
+
+function paintRingFace(readout) {
+  el.ringKicker.textContent = readout.kicker;
+  el.ringDay.textContent = readout.day;
+  el.ringHint.textContent = readout.hint;
+  el.ringDay.classList.toggle("ringWord", !!readout.word);
+  if (el.ringBtn) el.ringBtn.setAttribute("aria-label", readout.aria);
 }
 
 function showLockOverlay(show) {
@@ -907,7 +913,7 @@ function refreshSexList() {
   }
 }
 
-function renderAll() {
+function renderAll(opts = {}) {
   if (!vault) return;
 
   const tz = vault.profile.tz || CONFIG.defaults.tz;
@@ -941,7 +947,6 @@ function renderAll() {
   const model = forecast.model;
   const day = vault.daily?.[today] || {};
 
-  el.logDayLabel.textContent = "Today";
   const nextHeadline = headlineFor(model);
   const headlineChanged = lastHeadline !== "" && nextHeadline !== lastHeadline;
   el.headline.textContent = nextHeadline;
@@ -951,12 +956,7 @@ function renderAll() {
     el.headline.classList.add("settling");
   }
   lastHeadline = nextHeadline;
-  el.daySentence.textContent = daySentence(model);
-  el.trackLine.textContent = trackSentence(model.track);
-  el.lateNote.textContent = lateSentence(model);
-  el.wideNote.textContent = wideSentence(model);
-  el.insightLine.textContent = insightSentence(vault);
-  el.fertileLine.textContent = fertileSentence(model);
+  paintQuiet(model, today);
 
   el.undoBtn.classList.toggle("hidden", undoStack.length === 0);
   el.backTodayBtn.classList.add("hidden");
@@ -969,10 +969,19 @@ function renderAll() {
   if (vault.profile.discreet && viewName !== "calendar") showView("calendar");
   renderCycleRing(model, today);
   if (el.pillRow) el.pillRow.classList.toggle("hidden", vault.profile.situation !== "hormonal");
+  placeFertilityFields();
+  syncMoreLabel();
+  paintIconHint();
 
-  renderFlow(day.flow || "");
-  renderChips(day);
-  fillMore(day);
+  const quietLog = !!(opts.keepLog && el.flowRow.querySelector("[data-flow]"));
+  if (quietLog) {
+    paintFlow(day.flow || "");
+    paintChips(day);
+  } else {
+    renderFlow(day.flow || "");
+    renderChips(day);
+    fillMore(day);
+  }
   renderTimeline(el.timeline, forecast);
   el.calLabel.textContent = monthLabel(monthAnchor);
   const decor = currentTheme();
@@ -998,11 +1007,12 @@ function renderAll() {
   renderGates(model);
   setForecastMood(model);
 
-  paintSupplies(model, today);
   renderCycleBook(today);
   if (el.noteSearch?.value.trim().length >= 2) renderNoteHits();
-  renderSymptomEditor();
-  if (sheetISO) renderDaySheet();
+  if (!quietLog) {
+    renderSymptomEditor();
+    if (sheetISO) renderDaySheet();
+  }
   if (openPeriodStart) renderPeriod();
 
   maybeShowFallbackBanner(model, today, tz);
@@ -1083,11 +1093,44 @@ function fillCharmPicker(container, choice) {
   }
 }
 
-function paintSupplies(model, today) {
+function suppliesPhrase(model, today) {
   const lines = supplyLines(vault);
   const show = lines.length && reminderRelevant({ ...model, inBleed: false }, today, "both") && !model.inBleed;
-  el.suppliesLine.classList.toggle("hidden", !show);
-  el.suppliesLine.textContent = show ? `Have ready: ${lines.join(", ")}` : "";
+  return show ? `Have ready: ${lines.join(", ")}` : "";
+}
+
+function paintQuiet(model, today) {
+  el.trackLine.textContent = quietLine(model, suppliesPhrase(model, today));
+  for (const node of [el.logDayLabel, el.daySentence, el.lateNote, el.wideNote, el.insightLine, el.fertileLine, el.suppliesLine]) {
+    if (node) node.textContent = "";
+  }
+  el.suppliesLine?.classList.add("hidden");
+}
+
+function syncMoreLabel() {
+  const fertility = vault?.profile?.goal === "fertility";
+  const closed = el.moreBox.classList.contains("hidden");
+  const name = fertility ? "mucus and notes" : "temperature and notes";
+  el.moreToggle.textContent = closed ? name.charAt(0).toUpperCase() + name.slice(1) : `Hide ${name}`;
+}
+
+function placeFertilityFields() {
+  const fertility = vault.profile.goal === "fertility";
+  const lh = el.lhInput?.closest(".formRow");
+  const bbt = el.bbtInput?.closest(".formRow");
+  if (!lh || !bbt || !el.signRow || !el.moreBox) return;
+  if (fertility) {
+    if (lh.parentElement !== el.signRow) el.signRow.append(lh, bbt);
+  } else if (lh.parentElement !== el.moreBox) {
+    el.moreBox.prepend(lh, bbt);
+  }
+  el.signRow.classList.toggle("hidden", !fertility);
+}
+
+function paintIconHint() {
+  if (!el.iconHint) return;
+  const show = !panic && !!vault.profile.onboarded && !vault.profile.iconHintSeen && !vault.profile.discreet;
+  el.iconHint.classList.toggle("hidden", !show);
 }
 
 function renderCycleBook(today) {
@@ -1584,6 +1627,15 @@ function playLookSweep() {
   sweep.classList.add("on");
 }
 
+const FLOW_MOTION = ["sheen", "sheen-light", "sheen-medium", "sheen-heavy", "spark", "exhale"];
+
+function replayMotion(node, ...add) {
+  if (!node) return;
+  node.classList.remove(...FLOW_MOTION);
+  void node.offsetWidth;
+  if (add.length) node.classList.add(...add);
+}
+
 function playLogMotion(flow, iso) {
   if (panic) return;
   if (el.cycleRing) {
@@ -1591,19 +1643,20 @@ function playLogMotion(flow, iso) {
     void el.cycleRing.offsetWidth;
     el.cycleRing.classList.add("ringTravel");
   }
+  el.flowRow?.querySelectorAll(".flowBtn").forEach((node) => node.classList.remove(...FLOW_MOTION));
   const btn = el.flowRow.querySelector(`[data-flow="${flow}"]`);
   if (flow === "spotting") {
-    btn?.classList.add("spark");
+    replayMotion(btn, "spark");
     return;
   }
   if (flow === "none") {
-    btn?.classList.add("exhale");
+    replayMotion(btn, "exhale");
     document.body.classList.add("exhale");
     setTimeout(() => document.body.classList.remove("exhale"), 720);
     return;
   }
   if (flow !== "light" && flow !== "medium" && flow !== "heavy") return;
-  btn?.classList.add("sheen", `sheen-${flow}`);
+  replayMotion(btn, "sheen", `sheen-${flow}`);
   const cell = el.calendar.querySelector(`[data-iso="${iso}"]`);
   if (cell) {
     cell.classList.remove("pulseRing", "pulse-light", "pulse-medium", "pulse-heavy");
@@ -1732,11 +1785,29 @@ function renderChips(day) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "chip" + (on.has(chip.id) ? " on" : "");
+    btn.dataset.symptom = chip.id;
     btn.textContent = symptomLevelLabel(vault, chip.id, on.has(chip.id) ? levels[chip.id] : "");
     btn.disabled = loggingISO().future;
     btn.addEventListener("click", () => toggleSymptom(chip.id));
     el.symptomChips.appendChild(btn);
   }
+}
+
+function paintFlow(current) {
+  el.flowRow.querySelectorAll("[data-flow]").forEach((btn) => {
+    btn.classList.toggle("on", btn.dataset.flow === current);
+  });
+}
+
+function paintChips(day) {
+  const on = new Set(day?.symptoms || []);
+  const levels = day?.symptomLevel || {};
+  el.symptomChips.querySelectorAll("[data-symptom]").forEach((btn) => {
+    const id = btn.dataset.symptom;
+    const active = on.has(id);
+    btn.classList.toggle("on", active);
+    btn.textContent = symptomLevelLabel(vault, id, active ? levels[id] : "");
+  });
 }
 
 function fillMore(day) {

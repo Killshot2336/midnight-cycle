@@ -11,7 +11,9 @@ import {
   formatWeekday,
   daySentence,
   fitEpisodes,
-  topSymptom
+  topSymptom,
+  ringReadout,
+  quietLine
 } from "./cycleModel.js";
 import { clinicianSummary } from "./insights.js";
 
@@ -230,4 +232,78 @@ test("a spotting tail is not called an eight-day bleed in the summary", () => {
   const text = clinicianSummary({ daily, profile: {} }, model);
   assert.match(text, /Recent bleeding lengths \(days\): 1\./);
   assert.doesNotMatch(text, /outside the usual range/);
+});
+
+test("a late ring says Late instead of the raw day count", () => {
+  const model = buildForecastModel({
+    daily: { "2026-06-01": { flow: "medium" } },
+    profile: { situation: "cycling" }
+  }, "2026-09-28");
+  assert.equal(model.late, true);
+  const face = ringReadout(model, "2026-09-28");
+  assert.equal(face.day, "Late");
+  assert.equal(face.kicker, "");
+  assert.equal(face.hint, "Past the usual length");
+  assert.equal(face.frac, 1);
+  assert.equal(face.word, true);
+});
+
+test("a current bleed shows the bleed day in the ring", () => {
+  const model = buildForecastModel({
+    daily: {
+      "2026-09-26": { flow: "heavy" },
+      "2026-09-27": { flow: "medium" },
+      "2026-09-28": { flow: "light" }
+    },
+    profile: {}
+  }, "2026-09-28");
+  const face = ringReadout(model, "2026-09-28");
+  assert.equal(face.kicker, "Day");
+  assert.equal(face.day, "3");
+  assert.equal(face.hint, "Bleeding");
+  assert.equal(face.word, false);
+});
+
+test("an on-time ring names the cycle day", () => {
+  const model = buildForecastModel({
+    daily: { "2026-09-01": { flow: "medium" }, "2026-09-05": { flow: "none" } },
+    profile: {}
+  }, "2026-09-14");
+  const face = ringReadout(model, "2026-09-14");
+  assert.equal(face.kicker, "Day");
+  assert.equal(face.day, "14");
+  assert.match(face.hint, /^of about /);
+  assert.equal(face.word, false);
+  assert.ok(face.frac > 0 && face.frac < 1);
+});
+
+test("pregnancy pauses the ring face", () => {
+  const model = buildForecastModel({
+    daily: { "2026-08-01": { flow: "medium" } },
+    profile: { situation: "pregnancy" }
+  }, "2026-09-26");
+  const face = ringReadout(model, "2026-09-26");
+  assert.equal(face.day, "Paused");
+  assert.equal(face.hint, "Forecasts are off");
+  assert.equal(face.word, true);
+  assert.equal(face.frac, 0);
+});
+
+test("the quiet line is one sentence for the hit rate", () => {
+  const early = quietLine({ track: [], wide: false, paused: false, lastStart: "2026-09-01" }, "");
+  assert.match(early, /Early guess/);
+  assert.equal(early.includes("\n"), false);
+  const line = quietLine({
+    wide: true,
+    paused: false,
+    lastStart: "2026-01-01",
+    track: [
+      { error: 1, covered: true },
+      { error: 0, covered: true },
+      { error: 2, covered: false }
+    ]
+  }, "Have ready: pads");
+  assert.equal(line, "This window is wide on purpose. Off by 2 days last time. 2 of 3 starts fell in the window. Have ready: pads");
+  const paused = quietLine({ wide: true, paused: true, lastStart: "2026-01-01", track: [] }, "Have ready: pads");
+  assert.equal(paused.startsWith("This window is wide"), false);
 });

@@ -36,6 +36,10 @@
 
     <main class="main">
       <section class="stage isPrivate" data-view-panel="today">
+        <p id="iconHint" class="iconHint hidden">
+          <span>The eye covers the forecast. The shield opens a plain calendar. Lock needs a passcode.</span>
+          <button id="iconHintDismiss" class="btn ghost sm" type="button">Got it</button>
+        </p>
         <div id="stageLight" class="stageLight" aria-hidden="true"></div>
         <div id="charmLayer" class="charmLayer isCute corner-tr"></div>
         <button id="ringBtn" class="ringBtn" type="button" aria-label="Log today">
@@ -122,21 +126,18 @@
 
         <div class="lookPreview" aria-hidden="true">
           <div class="previewHeadline">Most likely Friday</div>
-          <div class="flowRow">
-            <button class="flowBtn" type="button" tabindex="-1" data-flow="none">None</button>
-            <button class="flowBtn" type="button" tabindex="-1" data-flow="spotting">Spotting</button>
-            <button class="flowBtn" type="button" tabindex="-1" data-flow="light">Light</button>
-            <button class="flowBtn on" type="button" tabindex="-1" data-flow="medium">Medium</button>
-            <button class="flowBtn" type="button" tabindex="-1" data-flow="heavy">Heavy</button>
-          </div>
-          <div class="previewWeek calendar">
-            <div class="calCell"><div class="calDay">12</div></div>
-            <div class="calCell calToday"><div class="calDay">13</div><div class="calTag">Today</div></div>
-            <div class="calCell calLogged"><div class="calDay">14</div><div class="calTag tagLogged">Logged</div></div>
-            <div class="calCell calExpected"><div class="calDay">15</div><div class="calTag tagExpected">Expected</div></div>
-            <div class="calCell"><div class="calDay">16</div></div>
-            <div class="calCell calFertile"><div class="calDay">17</div><div class="calTag tagFertile">Fertile</div></div>
-            <div class="calCell"><div class="calDay">18</div></div>
+          <div class="previewRing">
+            <svg class="cycleRing" viewBox="0 0 320 320">
+              <circle class="ringTrack" cx="160" cy="160" r="118"></circle>
+              <circle class="ringWindow" cx="160" cy="160" r="132" style="stroke-dasharray:59.2 829.4;stroke-dashoffset:-769.1"></circle>
+              <circle class="ringProgress" cx="160" cy="160" r="118" style="stroke-dasharray:370.6 741.2;stroke-dashoffset:0"></circle>
+              <circle class="ringDot" cx="160" cy="278" r="7"></circle>
+            </svg>
+            <span class="ringFace">
+              <span class="ringKicker">Day</span>
+              <span class="ringDay">14</span>
+              <span class="ringHint">of about 28</span>
+            </span>
           </div>
         </div>
 
@@ -144,12 +145,12 @@
           <div class="label">Looks</div>
           <div class="lookGrid">
             <button class="lookPick" type="button" data-look="velvet">Velvet</button>
+            <button class="lookPick" type="button" data-look="paper">Paper</button>
+            <button class="lookPick" type="button" data-look="blush">Blush</button>
             <button class="lookPick" type="button" data-look="midnight">Midnight</button>
             <button class="lookPick" type="button" data-look="noir">Noir</button>
             <button class="lookPick" type="button" data-look="gold">Gold hour</button>
             <button class="lookPick" type="button" data-look="sea">Sea glass</button>
-            <button class="lookPick" type="button" data-look="blush">Blush</button>
-            <button class="lookPick" type="button" data-look="paper">Paper</button>
             <button class="lookPick" type="button" data-look="custom">Custom</button>
           </div>
         </div>
@@ -436,6 +437,7 @@
         </div>
         <p id="symptomNote" class="tiny muted"></p>
       </details>
+      <div id="signRow" class="signRow hidden"></div>
       <button id="moreToggle" class="btn ghost sm" type="button">Temperature and notes</button>
       <div id="moreBox" class="moreBox hidden">
         <div class="formRow">

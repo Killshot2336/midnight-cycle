@@ -638,6 +638,56 @@ export function wideSentence(model) {
   return "This window is wide on purpose while your cycles vary.";
 }
 
+export function ringReadout(model, today) {
+  if (!model?.lastStart || model.paused) {
+    if (model?.paused) {
+      return { kicker: "", day: "Paused", hint: "Forecasts are off", frac: 0, word: true, aria: "Paused. Forecasts are off" };
+    }
+    return { kicker: "Day", day: "—", hint: "Log a period to begin", frac: 0, word: false, aria: "Log a period to begin" };
+  }
+  const length = Math.max(15, Math.round((model.muF || 15) + (model.muL || 13.5)));
+  const day = daysBetweenISO(model.lastStart, today || model.today) + 1;
+  if (model.inBleed) {
+    const bleed = model.bleedDay || 1;
+    return {
+      kicker: "Day",
+      day: String(bleed),
+      hint: "Bleeding",
+      frac: Math.max(0, Math.min(1, day / length)),
+      word: false,
+      aria: `Bleeding, day ${bleed}. Log today`
+    };
+  }
+  if (model.late) {
+    return {
+      kicker: "",
+      day: "Late",
+      hint: "Past the usual length",
+      frac: 1,
+      word: true,
+      aria: "Late. Past the usual length. Log today"
+    };
+  }
+  const shown = Math.max(day, 1);
+  return {
+    kicker: "Day",
+    day: String(shown),
+    hint: `of about ${length}`,
+    frac: Math.max(0, Math.min(1, shown / length)),
+    word: false,
+    aria: `Day ${shown}. Log today`
+  };
+}
+
+export function quietLine(model, suppliesText) {
+  const parts = [];
+  if (model?.wide && !model.paused && model.lastStart) parts.push("This window is wide on purpose.");
+  parts.push(trackSentence(model?.track));
+  const supplies = String(suppliesText || "").trim();
+  if (supplies) parts.push(supplies);
+  return parts.join(" ");
+}
+
 export function fertileSentence(model) {
   if (!model?.showFertile || model.paused || !model.draws?.length) return "";
   const days = [];

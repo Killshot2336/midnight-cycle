@@ -372,13 +372,34 @@ body.room-compact .calTag{display:none}
   box-shadow:inset 0 0 0 1px var(--accent);
 }
 .lookPreview{
-  display:grid;
-  gap:10px;
-  padding:14px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:4px;
+  padding:14px 14px 8px;
   border-radius:calc(var(--radius) - 6px);
   border:1px solid color-mix(in srgb, var(--gold) 40%, var(--line));
   background:color-mix(in srgb, var(--bg) 55%, transparent);
 }
+.previewHeadline{font-family:var(--display);font-weight:500;font-size:18px;text-align:center}
+.previewRing{position:relative;width:min(200px, 72%)}
+.previewRing .ringDay{font-size:46px}
+.iconHint{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  width:min(34rem, 100%);
+  margin:0 auto 4px;
+  padding:10px 12px;
+  border-radius:16px;
+  background:color-mix(in srgb, var(--card) 80%, transparent);
+  border:1px solid var(--line);
+  font-size:13px;
+  color:var(--muted);
+  text-align:left;
+}
+.signRow{display:flex;flex-direction:column;gap:4px}
 .previewWeek{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
 .previewWeek .calCell{min-height:44px;padding:6px 4px}
 .checkRow{display:flex;gap:16px;flex-wrap:wrap;align-items:center}
@@ -829,6 +850,13 @@ body.panicMode [data-view-panel="calendar"]{display:block !important}
 .stage .stageLight,
 .stage .charmLayer{display:none !important}
 .stageCopy{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;max-width:34rem}
+.stageCopy #logDayLabel,
+.stageCopy #daySentence,
+.stageCopy #lateNote,
+.stageCopy #wideNote,
+.stageCopy #insightLine,
+.stageCopy #fertileLine,
+.stageCopy #suppliesLine{display:none !important}
 .stageCopy .lead:empty,
 .stageCopy .insightLine:empty{display:none}
 .ringBtn{
@@ -868,6 +896,7 @@ body.panicMode [data-view-panel="calendar"]{display:block !important}
   font-weight:500;
   letter-spacing:-.04em;
 }
+.ringDay.ringWord{font-size:clamp(40px, 10vw, 56px);letter-spacing:-.03em}
 .ringHint{margin-top:8px;font-size:13px;color:var(--muted)}
 .ringTravel .ringDot{transform-box:fill-box;transform-origin:center;animation:dotRest .6s cubic-bezier(.22,.8,.3,1)}
 @keyframes dotRest{
