@@ -218,6 +218,8 @@ let monthAnchor = null;
 const UNDO_LIMIT = 20;
 let undoStack = [];
 let arrived = false;
+let ringDrawn = false;
+let yearDrawn = false;
 let lastHeadline = "";
 let monthMotion = "";
 let decorKey = "";
@@ -644,6 +646,7 @@ function wireUI() {
     if (vault?.profile?.discreet || !vault?.profile?.onboarded) return;
     openLog();
   });
+  window.addEventListener("resize", () => placeTabGlide());
   el.startBtn?.addEventListener("click", () => markToday("medium"));
   el.doneBtn?.addEventListener("click", () => markToday("none"));
   el.yesterdayBtn?.addEventListener("click", () => {
@@ -863,6 +866,8 @@ function showView(name) {
     btn.classList.toggle("on", btn.dataset.view === viewName);
     btn.setAttribute("aria-current", btn.dataset.view === viewName ? "page" : "false");
   });
+  if (viewName === "book") revealYear();
+  requestAnimationFrame(placeTabGlide);
 }
 
 function onTab(name) {
@@ -921,13 +926,26 @@ function renderCycleRing(model, today) {
     paint(progress, 0, 0, circ);
     paint(windowArc, 0, 0, windowCirc);
     dot.setAttribute("opacity", "0");
-    ring.classList.remove("ring-bleed", "ring-late", "ring-firm");
+    ring.classList.remove("ring-bleed", "ring-late", "ring-firm", "ring-near");
     ring.classList.add("ring-soft");
     paintRingFace(readout);
     return;
   }
 
   const length = Math.max(15, Math.round((model.muF || 15) + (model.muL || 13.5)));
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!ringDrawn && !panic && !vault?.profile?.discreet && !reduce) {
+    progress.style.transition = "none";
+    windowArc.style.transition = "none";
+    paint(progress, 0, 0, circ);
+    paint(windowArc, 0, 0, windowCirc);
+    void progress.getBoundingClientRect();
+    progress.style.transition = "";
+    windowArc.style.transition = "";
+    ringDrawn = true;
+  } else if (reduce || panic) {
+    ringDrawn = true;
+  }
   paint(progress, 0, readout.frac, circ);
 
   let winFrom = 0;
@@ -945,19 +963,30 @@ function renderCycleRing(model, today) {
   dot.setAttribute("cy", String(160 + Math.sin(angle) * radius));
   dot.setAttribute("opacity", "1");
   const known = (model.track || []).length >= 3 && !model.wide;
+  const untilWindow = model.low && model.today < model.low ? daysBetweenISO(model.today, model.low) : 0;
   ring.classList.toggle("ring-firm", known);
   ring.classList.toggle("ring-soft", !known);
   ring.classList.toggle("ring-bleed", !!model.inBleed);
   ring.classList.toggle("ring-late", !!(model.late && !model.inBleed));
+  ring.classList.toggle("ring-near", untilWindow > 0 && untilWindow <= 7 && !model.inBleed);
   paintRingFace(readout);
 }
 
 function paintRingFace(readout) {
   const glance = !!(vault?.profile?.discreet && !panic);
+  const nextDay = glance ? (readout.glance || readout.day) : readout.day;
+  const changed = el.ringDay.textContent !== nextDay;
   el.ringKicker.textContent = glance ? "" : readout.kicker;
-  el.ringDay.textContent = glance ? (readout.glance || readout.day) : readout.day;
+  el.ringDay.textContent = nextDay;
   el.ringHint.textContent = glance ? "" : readout.hint;
   el.ringDay.classList.toggle("ringWord", !glance && !!readout.word);
+  if (changed && !glance && !panic && nextDay) {
+    el.ringDay.classList.remove("numIn");
+    void el.ringDay.offsetWidth;
+    el.ringDay.classList.add("numIn");
+  } else if (glance || panic) {
+    el.ringDay.classList.remove("numIn");
+  }
   if (el.ringBtn) el.ringBtn.setAttribute("aria-label", glance ? `Day ${readout.glance || readout.day}` : readout.aria);
 }
 
@@ -974,11 +1003,12 @@ function paintQuick(model) {
 function paintYearInto(node, cells) {
   if (!node) return;
   node.replaceChildren();
-  for (const cell of cells) {
+  cells.forEach((cell, i) => {
     const dot = document.createElement("i");
     dot.className = "yearCell" + (cell.kind ? ` ${cell.kind}` : "");
+    dot.style.setProperty("--col", String(Math.floor(i / 7)));
     node.appendChild(dot);
-  }
+  });
 }
 
 function renderYear(today) {
@@ -1172,6 +1202,7 @@ function renderAll(opts = {}) {
 
   maybeShowFallbackBanner(model, today, tz);
   cueMotion();
+  requestAnimationFrame(placeTabGlide);
 }
 
 function syncControls() {
@@ -1256,13 +1287,20 @@ function suppliesPhrase(model, today) {
 
 function paintQuiet(model, today) {
   const heavy = heavyDayPattern(vault, today);
-  el.trackLine.textContent = todayLine(model, {
+  const nextLine = todayLine(model, {
     landed: landedSentence(model),
     heavy: !!(model.inBleed && heavy && heavy.day === model.bleedDay),
     usualBleed: usualBleedDays(vault, today),
     symptom: symptomNowLine(vault, model),
     supplies: suppliesPhrase(model, today)
   });
+  const lineChanged = el.trackLine.textContent !== nextLine;
+  el.trackLine.textContent = nextLine;
+  if (lineChanged && nextLine && !vault?.profile?.discreet && !panic) {
+    el.trackLine.classList.remove("lineSpeak");
+    void el.trackLine.offsetWidth;
+    el.trackLine.classList.add("lineSpeak");
+  }
   for (const node of [el.logDayLabel, el.daySentence, el.lateNote, el.wideNote, el.insightLine, el.fertileLine, el.suppliesLine]) {
     if (node) node.textContent = "";
   }
@@ -1849,6 +1887,31 @@ function charmReact(flow) {
   });
 }
 
+function revealYear() {
+  if (yearDrawn || !el.yearStrip || panic || vault?.profile?.discreet) return;
+  yearDrawn = true;
+  el.yearStrip.classList.add("draw");
+  setTimeout(() => el.yearStrip?.classList.remove("draw"), 1200);
+}
+
+function placeTabGlide() {
+  const bar = document.getElementById("tabbar");
+  const glide = bar?.querySelector(".tabGlide");
+  if (!bar || !glide) return;
+  if (panic) {
+    glide.classList.add("hidden");
+    return;
+  }
+  const on = bar.querySelector(".tab.on");
+  if (!on) return;
+  const rect = on.getBoundingClientRect();
+  const barRect = bar.getBoundingClientRect();
+  if (!rect.width || !barRect.width) return;
+  glide.classList.remove("hidden");
+  glide.style.width = `${rect.width}px`;
+  glide.style.transform = `translateX(${rect.left - barRect.left - bar.clientLeft}px)`;
+}
+
 function cueMotion() {
   if (!el.calendar || panic) return;
   if (monthMotion) {
@@ -1857,6 +1920,8 @@ function cueMotion() {
     el.calendar.classList.remove("shift-next", "shift-prev");
     void el.calendar.offsetWidth;
     el.calendar.classList.add(cls);
+    el.calendar.querySelectorAll(".calLogged").forEach((cell) => cell.classList.add("pulseRing", "pulse-medium"));
+    el.calendar.querySelectorAll(".calSpot").forEach((cell) => cell.classList.add("pulseRing", "pulse-light"));
   }
   if (!arrived && vault?.profile?.onboarded) {
     arrived = true;

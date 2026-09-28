@@ -1,8 +1,9 @@
-const CACHE = "midnight-v16";
+const CACHE = "midnight-v17";
 const PRECACHE = [
   "./",
   "./index.html",
   "./styles.css",
+  "./fonts/InstrumentSerif-Regular.ttf",
   "./app.js",
   "./firebase.js",
   "./manifest.json",

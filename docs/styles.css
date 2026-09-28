@@ -17,7 +17,15 @@
   --flow-heavy:#8e2f45;
   --radius:22px;
   --radius-sm:999px;
-  --display:"Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
+  --display:"Instrument Serif", "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
+}
+
+@font-face{
+  font-family:"Instrument Serif";
+  src:url("./fonts/InstrumentSerif-Regular.ttf") format("truetype");
+  font-weight:400;
+  font-style:normal;
+  font-display:swap;
 }
 
 *{box-sizing:border-box}
@@ -70,8 +78,18 @@ body.pattern-silk::before{
 }
 
 body.type-sharp{--display:ui-sans-serif, system-ui, sans-serif}
-body.type-serif{--display:"Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif}
+body.type-serif{--display:"Instrument Serif", "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif}
 body.type-display{--display:Didot, "Bodoni MT", "Bodoni 72", "Times New Roman", serif}
+body.mood-plain::after{
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:0;
+  pointer-events:none;
+  opacity:.2;
+  background-image:radial-gradient(rgba(70,48,36,.55) 0.55px, transparent 0.7px);
+  background-size:3px 3px;
+}
 
 .hidden{display:none !important}
 .mt{margin-top:14px}
@@ -571,6 +589,8 @@ body.arrive .flowRow{animation:rise .7s cubic-bezier(.22,.8,.3,1) .42s both}
 body.arrive .chips{animation:rise .7s cubic-bezier(.22,.8,.3,1) .54s both}
 body.arrive .charmLayer{animation:rise .75s cubic-bezier(.22,.8,.3,1) .66s both}
 .personalLine.lineIn{animation:rise .45s ease}
+.trackLine.lineSpeak{animation:lineSpeak .5s ease .18s both}
+.ringDay.numIn{animation:numIn .45s cubic-bezier(.22,.8,.3,1)}
 
 .flowBtn:active,.chip:active,.btn:active,.lookPick:active,.charmPick:active{transform:scale(.96)}
 .flowBtn.sheen::after,
@@ -683,6 +703,30 @@ body.marks-wash .calFertile{animation:breathe 8s ease-in-out infinite}
 @keyframes rise{
   from{opacity:0;transform:translateY(22px);filter:blur(8px)}
   to{opacity:1;transform:none;filter:blur(0)}
+}
+@keyframes numIn{
+  from{opacity:0;transform:translateY(10px)}
+  to{opacity:1;transform:none}
+}
+@keyframes lineSpeak{
+  from{opacity:0;transform:translateY(6px)}
+  to{opacity:1;transform:none}
+}
+@keyframes dotBreath{
+  0%,100%{transform:scale(1)}
+  50%{transform:scale(1.08)}
+}
+@keyframes windowPulse{
+  0%,70%,100%{stroke-opacity:.5}
+  82%{stroke-opacity:1}
+}
+@keyframes yearIn{
+  from{opacity:0;transform:scale(.35)}
+  to{opacity:1;transform:none}
+}
+@keyframes scrimIn{
+  from{opacity:0}
+  to{opacity:1}
 }
 @keyframes drawLine{
   from{transform:scaleX(0)}
@@ -822,7 +866,8 @@ body.panicMode .calendar,
 body.panicMode .lookSweep{
   animation:none !important;
 }
-body.panicMode .lookSweep{display:none}
+body.panicMode .lookSweep,
+body.panicMode::after{display:none}
 
 [data-view-panel]{display:none}
 body[data-view="today"] [data-view-panel="today"]{display:flex}
@@ -848,8 +893,16 @@ body.panicMode [data-view-panel="calendar"]{display:block !important}
   justify-content:center;
   gap:8px;
 }
-.stage .stageLight,
 .stage .charmLayer{display:none !important}
+.stage .stageLight{
+  left:50%;
+  top:8%;
+  width:min(440px, 92vw);
+  height:min(440px, 92vw);
+  margin-left:calc(min(440px, 92vw) / -2);
+  opacity:.34;
+  filter:blur(16px);
+}
 .stageCopy{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;max-width:34rem}
 .stageCopy #logDayLabel,
 .stageCopy #daySentence,
@@ -882,10 +935,19 @@ body.panicMode [data-view-panel="calendar"]{display:block !important}
 .ringProgress{stroke:var(--accent);stroke-width:10}
 .ring-soft .ringWindow{opacity:.38}
 .ring-firm .ringWindow{opacity:1}
+.ring-near .ringWindow{animation:windowPulse 4.8s ease-in-out infinite}
 .ring-bleed .ringProgress{stroke:var(--flow-medium)}
 .ring-late .ringDot{fill:var(--accent)}
-.ringDot{fill:var(--text);stroke:var(--bg);stroke-width:4}
-.ringProgress,.ringWindow,.ringDot{transition:stroke-dashoffset .7s cubic-bezier(.22,.8,.3,1), stroke-dasharray .7s cubic-bezier(.22,.8,.3,1), cx .7s cubic-bezier(.22,.8,.3,1), cy .7s cubic-bezier(.22,.8,.3,1)}
+.ringDot{
+  fill:var(--text);
+  stroke:var(--gold);
+  stroke-width:2.5;
+  filter:drop-shadow(0 0 5px color-mix(in srgb, var(--gold) 50%, transparent));
+  transform-box:fill-box;
+  transform-origin:center;
+  animation:dotBreath 6.5s ease-in-out infinite;
+}
+.ringProgress,.ringWindow,.ringDot{transition:stroke .65s ease, opacity .8s ease, stroke-dashoffset .7s cubic-bezier(.22,.8,.3,1), stroke-dasharray .7s cubic-bezier(.22,.8,.3,1), cx .7s cubic-bezier(.22,.8,.3,1), cy .7s cubic-bezier(.22,.8,.3,1)}
 .ringFace{
   position:absolute;inset:0;
   display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -924,7 +986,21 @@ body.panicMode [data-view-panel="calendar"]{display:block !important}
   backdrop-filter:blur(18px);
   box-shadow:0 10px 30px rgba(0,0,0,.28);
 }
+.tabGlide{
+  position:absolute;
+  z-index:0;
+  top:5px;
+  bottom:5px;
+  left:0;
+  width:calc((100% - 22px) / 4);
+  border-radius:999px;
+  background:color-mix(in srgb, var(--accent) 20%, transparent);
+  pointer-events:none;
+  transition:transform .45s cubic-bezier(.22,.8,.3,1), width .45s cubic-bezier(.22,.8,.3,1);
+}
 .tab{
+  position:relative;
+  z-index:1;
   flex:1;
   border:0;
   background:transparent;
@@ -937,7 +1013,7 @@ body.panicMode [data-view-panel="calendar"]{display:block !important}
   font-weight:600;
   cursor:pointer;
 }
-.tab.on{background:color-mix(in srgb, var(--accent) 20%, transparent);color:var(--text)}
+.tab.on{background:transparent;color:var(--text)}
 .iconBtn{
   width:40px;height:40px;padding:0;
   display:grid;place-items:center;
@@ -949,7 +1025,7 @@ body.panicMode [data-view-panel="calendar"]{display:block !important}
   position:fixed;inset:0;z-index:40;
   display:flex;align-items:flex-end;justify-content:center;
 }
-.logScrim{position:absolute;inset:0;border:0;background:color-mix(in srgb, var(--bg) 46%, transparent);cursor:pointer}
+.logScrim{position:absolute;inset:0;border:0;background:color-mix(in srgb, var(--bg) 46%, transparent);cursor:pointer;animation:scrimIn .32s ease both}
 .sheetCard{
   position:relative;
   width:min(560px, 100%);
@@ -999,6 +1075,11 @@ body.panicMode [data-view-panel="calendar"]{display:block !important}
 .yearCell{width:8px;height:8px;border-radius:2px;background:color-mix(in srgb, var(--text) 10%, transparent)}
 .yearCell.bleed{background:var(--flow-medium)}
 .yearCell.spot{background:var(--flow-spot)}
+.yearStrip.draw .yearCell{
+  animation:yearIn .42s cubic-bezier(.22,.8,.3,1) both;
+  animation-delay:calc(var(--col) * 16ms);
+}
+.yearStrip.draw .yearCell.bleed{animation-delay:calc(var(--col) * 16ms + 80ms)}
 .roomRow{display:flex;gap:8px;margin:0 0 12px}
 .roomPick{
   border:1px solid var(--line);
@@ -1024,7 +1105,20 @@ body.discreet .iconHint,
 body.discreet .ringKicker,
 body.discreet .ringHint,
 body.discreet .legend,
-body.discreet #dayGlance{display:none !important}
+body.discreet #dayGlance,
+body.discreet .stageLight{display:none !important}
+body.discreet .ringDot,
+body.discreet .ringProgress,
+body.discreet .ringWindow,
+body.discreet .ringDay,
+body.panicMode .ringDot,
+body.panicMode .ringProgress,
+body.panicMode .ringWindow,
+body.panicMode .ringDay{
+  animation:none !important;
+  transition:none !important;
+}
+body.discreet .ringDot{filter:none;stroke:var(--bg)}
 .stageCopy .banner{align-self:stretch;text-align:left}
 body.pattern-stars::before{opacity:.2}
 body.pattern-lace::before{opacity:.16}
