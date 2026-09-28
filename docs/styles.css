@@ -1022,7 +1022,10 @@ body.discreet .quickLog,
 body.discreet .firstStart,
 body.discreet .iconHint,
 body.discreet .ringKicker,
-body.discreet .ringHint{display:none !important}
+body.discreet .ringHint,
+body.discreet .legend,
+body.discreet #dayGlance{display:none !important}
+.stageCopy .banner{align-self:stretch;text-align:left}
 body.pattern-stars::before{opacity:.2}
 body.pattern-lace::before{opacity:.16}
 

@@ -56,6 +56,7 @@ export function updateDay(vault, iso, patch) {
   if (patch && Object.prototype.hasOwnProperty.call(patch, "symptoms")) {
     next.symptoms = Array.isArray(patch.symptoms) ? [...patch.symptoms] : [];
   }
+  if (patch && Object.prototype.hasOwnProperty.call(patch, "flow") && !patch.ended) delete next.ended;
   vault.daily[iso] = next;
   refreshPeriods(vault);
   return prev;

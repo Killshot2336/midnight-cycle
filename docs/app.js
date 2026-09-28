@@ -593,18 +593,25 @@ function wireUI() {
     const input = document.createElement("input");
     input.type = "date";
     input.className = "input obExtra";
+    input.name = "earlierStart";
+    input.setAttribute("aria-label", "Earlier start");
     input.addEventListener("change", () => previewFirst());
     el.obExtra.appendChild(input);
   });
 
   el.obSave.addEventListener("click", async () => {
+    const today = todayISO(vault.profile.tz || CONFIG.defaults.tz);
+    const chosen = startDates();
+    if (chosen.length && !chosen.some((iso) => iso <= today)) {
+      previewFirst();
+      return;
+    }
     vault.profile.situation = vault.profile.situation || "cycling";
     vault.profile.goal = vault.profile.goal || "bleed";
     vault.profile.onboarded = true;
     el.situation.value = vault.profile.situation;
     el.goal.value = vault.profile.goal;
-    const today = todayISO(vault.profile.tz || CONFIG.defaults.tz);
-    for (const iso of startDates()) {
+    for (const iso of chosen) {
       if (iso && iso <= today) addPeriodStart(vault, iso);
     }
     await persistVault();
@@ -634,7 +641,7 @@ function wireUI() {
     paintIconHint();
   });
   el.ringBtn?.addEventListener("click", () => {
-    if (vault?.profile?.discreet) return;
+    if (vault?.profile?.discreet || !vault?.profile?.onboarded) return;
     openLog();
   });
   el.startBtn?.addEventListener("click", () => markToday("medium"));
@@ -743,7 +750,16 @@ function previewFirst() {
   for (const iso of startDates()) {
     if (iso <= today) addPeriodStart(copy, iso);
   }
-  paintYearInto(el.firstYear, startDates().filter((iso) => iso <= today).map((iso) => ({ iso, kind: "bleed" })));
+  const chosen = startDates();
+  const usable = chosen.filter((iso) => iso <= today);
+  paintYearInto(el.firstYear, usable.map((iso) => ({ iso, kind: "bleed" })));
+  if (chosen.length && !usable.length) {
+    const empty = buildForecast(copy, tz, 14, today);
+    renderCycleRing(empty.model, today);
+    el.headline.textContent = headlineFor(empty.model);
+    el.trackLine.textContent = "That date is still ahead.";
+    return;
+  }
   const forecast = buildForecast(copy, tz, 14, today);
   renderCycleRing(forecast.model, today);
   el.headline.textContent = headlineFor(forecast.model);
@@ -947,7 +963,8 @@ function paintRingFace(readout) {
 function paintQuick(model) {
   const ready = !!vault?.profile?.onboarded && !model?.paused;
   const windowOpen = !!(model?.low && model?.high && model.today >= model.low && model.today <= model.high);
-  const canStart = ready && !model?.inBleed && (windowOpen || model?.late || !model?.lastStart);
+  const restedToday = !!(model?.today && vault.daily?.[model.today]?.ended);
+  const canStart = ready && !model?.inBleed && (windowOpen || model?.late || !model?.lastStart || restedToday);
   el.startBtn?.classList.toggle("hidden", !canStart);
   el.doneBtn?.classList.toggle("hidden", !(ready && model?.inBleed));
   el.yesterdayBtn?.classList.toggle("hidden", !ready);
@@ -1067,6 +1084,11 @@ function renderAll(opts = {}) {
     return;
   }
 
+  el.appTitle.textContent = "Midnight";
+  el.appSub.textContent = vault.profile.discreet
+    ? "Private on this device."
+    : "Your cycle, private on this device.";
+
   const forecast = buildForecast(vault, tz, 14, today);
   const model = forecast.model;
   const sheetOpen = el.logSheet && !el.logSheet.classList.contains("hidden");
@@ -1116,16 +1138,13 @@ function renderAll(opts = {}) {
     vault,
     model,
     anchorISO: monthAnchor,
-    selectedISO: sheetISO || today,
+    selectedISO: (sheetOpen ? focusISO : null) || sheetISO || today,
     today,
+    plain: !!vault.profile.discreet,
     calCharm: decor.calCharm,
     charm: decor.charm,
     onSelect: (iso) => {
-      if (vault.profile.discreet) {
-        vault.profile.discreet = false;
-        persistVault().then(() => renderAll());
-        return;
-      }
+      if (vault.profile.discreet) return;
       if (iso > today) {
         el.dayGlance.textContent = dayGlanceLine(model, iso);
         el.dayGlance.classList.toggle("hidden", !el.dayGlance.textContent);
@@ -1345,6 +1364,7 @@ function renderSymptomEditor() {
     label.className = "checkInline";
     const input = document.createElement("input");
     input.type = "checkbox";
+    input.name = "showSymptom";
     input.dataset.hideSymptom = chip.id;
     input.checked = !hidden.has(chip.id);
     label.appendChild(input);
@@ -1441,6 +1461,8 @@ function renderDaySheet() {
 
   const note = document.createElement("textarea");
   note.className = "input";
+  note.name = "dayNotes";
+  note.setAttribute("aria-label", "Note");
   note.rows = 2;
   note.dataset.dayNotes = "1";
   note.placeholder = "Note";
@@ -1451,6 +1473,8 @@ function renderDaySheet() {
   const temp = document.createElement("input");
   temp.className = "input";
   temp.type = "number";
+  temp.name = "dayBbt";
+  temp.setAttribute("aria-label", "Waking temperature");
   temp.step = "0.01";
   temp.dataset.dayBbt = "1";
   temp.placeholder = (vault.profile.tempUnit || "C") === "F" ? "Waking temperature °F" : "Waking temperature °C";
@@ -1524,6 +1548,7 @@ function labeledSelect(labelText, key, options, value, disabled) {
   name.textContent = labelText;
   const select = document.createElement("select");
   select.className = "input";
+  select.name = key;
   select.dataset.dayField = key;
   select.disabled = disabled;
   for (const [optionValue, optionLabel] of options) {
@@ -1543,6 +1568,7 @@ function checkField(key, labelText, checked, disabled) {
   label.className = "checkInline";
   const input = document.createElement("input");
   input.type = "checkbox";
+  input.name = key;
   input.dataset.dayCheck = key;
   input.checked = checked;
   input.disabled = disabled;
