@@ -1,4 +1,5 @@
-import { bleedFinished, deriveEpisodes, topSymptom } from "./cycleModel.js";
+import { addDaysISO } from "./guard.js";
+import { START_FLOW, bleedFinished, deriveEpisodes, topSymptom } from "./cycleModel.js";
 
 export const SYMPTOM_CHIPS = [
   { id: "cramps", label: "Cramps" },
@@ -52,6 +53,14 @@ export function symptomDayNote(top) {
   return `${lead} about ${offsetPhrase(top.offset)}.`;
 }
 
+function startFlowCount(daily, episode) {
+  let count = 0;
+  for (let iso = episode?.start, guard = 0; iso && episode?.end && iso <= episode.end && guard < 90; iso = addDaysISO(iso, 1), guard += 1) {
+    if (START_FLOW.has(daily?.[iso]?.flow)) count += 1;
+  }
+  return count;
+}
+
 export function clinicianSummary(vault, model) {
   const lines = ["Cycle summary"];
   const lens = model?.cycleLengths || [];
@@ -64,14 +73,14 @@ export function clinicianSummary(vault, model) {
     if (!today || i < arr.length - 1) return true;
     return bleedFinished(vault?.daily || {}, e, today);
   });
-  const bleeds = closed.slice(-6).map((e) => e.bleedDays);
+  const bleeds = closed.slice(-6).map((e) => startFlowCount(vault?.daily || {}, e));
   if (bleeds.length) lines.push(`Recent bleeding lengths (days): ${bleeds.join(", ")}.`);
 
   const sentence = insightSentence(vault);
   if (sentence) lines.push(sentence);
 
   const outsideCycles = lens.filter((n) => n < 21 || n > 38).length;
-  const longBleeds = closed.filter((e) => e.bleedDays > 7).length;
+  const longBleeds = closed.filter((e) => startFlowCount(vault?.daily || {}, e) > 7).length;
   if (outsideCycles >= 2 || longBleeds >= 2) {
     lines.push("Some cycles fall outside the usual range (about 21–38 days, bleeding usually 7 days or less).");
   }

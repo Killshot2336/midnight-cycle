@@ -13,6 +13,7 @@ import {
   fitEpisodes,
   topSymptom
 } from "./cycleModel.js";
+import { clinicianSummary } from "./insights.js";
 
 test("a junk day key does not freeze the forecast", { timeout: 2000 }, () => {
   const episodes = deriveEpisodes({
@@ -220,4 +221,13 @@ test("high energy two weeks before a period can be learned", () => {
   const top = topSymptom({ daily });
   assert.equal(top?.id, "energyHigh");
   assert.equal(top?.offset, -14);
+});
+
+test("a spotting tail is not called an eight-day bleed in the summary", () => {
+  const daily = { "2026-04-01": { flow: "medium" } };
+  for (let i = 1; i <= 7; i++) daily[addDaysISO("2026-04-01", i)] = { flow: "spotting" };
+  const model = buildForecastModel({ daily, profile: {} }, "2026-05-01");
+  const text = clinicianSummary({ daily, profile: {} }, model);
+  assert.match(text, /Recent bleeding lengths \(days\): 1\./);
+  assert.doesNotMatch(text, /outside the usual range/);
 });

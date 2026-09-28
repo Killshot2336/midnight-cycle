@@ -175,6 +175,7 @@ const el = {
   removePasscodeBtn: document.getElementById("removePasscodeBtn"),
   symptomHide: document.getElementById("symptomHide"),
   customSymptom: document.getElementById("customSymptom"),
+  symptomNote: document.getElementById("symptomNote"),
   addSymptomBtn: document.getElementById("addSymptomBtn"),
   dayOverlay: document.getElementById("dayOverlay"),
   dayTitle: document.getElementById("dayTitle"),
@@ -218,6 +219,7 @@ let viewName = "today";
 main().catch((e) => {
   console.error("Fatal init error:", e);
   if (el.appTitle) el.appTitle.textContent = "Midnight";
+  document.body.classList.add("boot-error");
   if (el.appSub) el.appSub.textContent = "Recovered from an error. Reload if needed.";
   if (el.statusPill) el.statusPill.textContent = "Recovered";
 });
@@ -390,7 +392,7 @@ function wireUI() {
 
   el.moreToggle.addEventListener("click", () => {
     el.moreBox.classList.toggle("hidden");
-    el.moreToggle.textContent = el.moreBox.classList.contains("hidden") ? "More" : "Hide extra";
+    el.moreToggle.textContent = el.moreBox.classList.contains("hidden") ? "Temperature and notes" : "Hide temperature and notes";
   });
 
   el.lhInput.addEventListener("change", () => saveMore({ lh: el.lhInput.value || "" }));
@@ -1435,6 +1437,7 @@ function onPeriodClick(event) {
   if (jump) {
     monthAnchor = `${jump.dataset.periodJump.slice(0, 7)}-01`;
     closePeriod();
+    showView("calendar");
     renderAll();
     el.calendar.scrollIntoView({ behavior: "smooth", block: "start" });
     return;
@@ -1476,13 +1479,18 @@ async function savePastStarts() {
   }
   const multi = [];
   for (const iso of dates) {
+    if (START_FLOW.has(vault.daily?.[iso]?.flow)) continue;
     multi.push({ iso, prev: snapshotDay(vault, iso) });
     addPeriodStart(vault, iso);
   }
-  pushUndo({ multi });
   el.pastStarts.value = "";
+  if (!multi.length) {
+    el.customNote.textContent = "Those starts are already logged.";
+    return;
+  }
+  pushUndo({ multi });
   await persistVault();
-  el.customNote.textContent = `Added ${dates.length} start${dates.length === 1 ? "" : "s"}.`;
+  el.customNote.textContent = `Added ${multi.length} start${multi.length === 1 ? "" : "s"}.`;
   renderAll();
 }
 
@@ -1523,13 +1531,22 @@ function addCustomSymptom() {
   const label = el.customSymptom.value.trim().slice(0, 24);
   if (!label) return;
   const list = Array.isArray(vault.profile.customSymptoms) ? vault.profile.customSymptoms : [];
+  const taken = new Set([
+    ...list.map((item) => String(item.label || "").trim().toLowerCase()),
+    ...["cramps", "headache", "bloating", "breast tenderness", "low mood", "high mood", "low energy", "high energy", "poor sleep", "stress"]
+  ]);
+  if (taken.has(label.toLowerCase())) {
+    if (el.symptomNote) el.symptomNote.textContent = "That symptom is already there.";
+    return;
+  }
   if (list.length >= 12) {
-    el.customNote.textContent = "Twelve added symptoms is the limit.";
+    if (el.symptomNote) el.symptomNote.textContent = "Twelve added symptoms is the limit.";
     return;
   }
   list.push({ id: `c${Date.now().toString(36)}`, label });
   vault.profile.customSymptoms = list;
   el.customSymptom.value = "";
+  if (el.symptomNote) el.symptomNote.textContent = "";
   persistVault().then(() => renderAll());
 }
 
